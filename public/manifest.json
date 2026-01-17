@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Heartbeat",
+  "description": "The backlog manager for Lovable builders.",
+  "version": "1.0",
+  "icons": {
+    "16": "icon-128.png",
+    "48": "icon-128.png",
+    "128": "icon-128.png"
+  },
+  "permissions": ["sidePanel", "scripting", "activeTab", "storage"],
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
