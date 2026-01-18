@@ -1,4 +1,4 @@
-import { Heart, Download, Upload, Plus } from 'lucide-react';
+import { Download, Upload, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -37,7 +37,7 @@ export function Header({ onExport, onImport, onNewProject }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-2">
-        <Heart className="w-6 h-6 text-heartbeat fill-heartbeat" />
+        <img src="/icon-128.png" alt="Heartbeat" className="w-8 h-8" />
         <h1 className="text-lg font-bold text-foreground">Heartbeat</h1>
       </div>
 

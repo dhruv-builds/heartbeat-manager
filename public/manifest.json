@@ -8,7 +8,11 @@
     "48": "icon-128.png",
     "128": "icon-128.png"
   },
+  "action": {},
   "permissions": ["sidePanel", "scripting", "activeTab", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "side_panel": {
     "default_path": "index.html"
   },

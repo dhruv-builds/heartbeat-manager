@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,13 @@ export function NewProjectDialog({
   suggestedName,
 }: NewProjectDialogProps) {
   const [name, setName] = useState(suggestedName || '');
+
+  // Sync name state when suggestedName prop changes
+  useEffect(() => {
+    if (suggestedName) {
+      setName(suggestedName);
+    }
+  }, [suggestedName]);
 
   const handleCreate = () => {
     if (name.trim()) {
