@@ -1,73 +1,77 @@
-# Welcome to your Lovable project
+**Heartbeat ❤️**
 
-## Project info
+**The Product Management Sidebar for Lovable Builders.**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Heartbeat is a Chrome Extension designed to bridge the gap between planning features and building them in Lovable. It allows you to manage a sequential backlog of feature prompts ("Pulses") and inject them directly into the Lovable chat interface with a single click.
 
-## How can I edit this code?
+        Status: MVP / V1 (Local Mode)
+        Stack: React, Vite, Shadcn UI, Chrome Side Panel API
 
-There are several ways of editing your application.
+**🚀 Key Features**
 
-**Use Lovable**
+1. Context-Aware Backlog
+Heartbeat automatically detects which Lovable project you are working on (e.g., "Daily Compass") and switches to the corresponding backlog. No manual context switching required.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+2. The "Pulse" Workflow
+Instead of managing prompts in disjointed Notion docs or Google Sheets:
 
-Changes made via Lovable will be committed automatically to this repo.
+Create Features: Define a feature title and its detailed prompt spec ("Pulse").
 
-**Use your preferred IDE**
+Inject: Click the Inject button to teleport the prompt directly into the Lovable chat input.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Auto-Focus: The chat input is automatically focused, letting you hit Enter immediately to start the build.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Responsive Dashboard
+Sidebar Mode: A compact, drag-and-drop list that sits alongside your builder.
 
-Follow these steps:
+Dashboard Mode: Open the extension in full-screen (Desktop) for a master-detail view to draft complex prompts comfortably.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+4. Local Privacy
+All data is stored in your browser's localStorage. No external databases, no cloud sync (yet). Your ideas stay on your machine.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+**🛠 Installation (Developer Mode)**
 
-# Step 3: Install the necessary dependencies.
-npm i
+Since this is a private tool, you install it as an "Unpacked Extension":
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+Clone or Download this repository.
 
-**Edit a file directly in GitHub**
+Install Dependencies:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+          npm install
+  
+Build the Extension:
 
-**Use GitHub Codespaces**
+          npm run build
+  
+This will create a dist/ folder.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Load into Chrome:
 
-## What technologies are used for this project?
+Go to chrome://extensions
 
-This project is built with:
+Enable Developer Mode (top right toggle).
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Click Load Unpacked.
 
-## How can I deploy this project?
+Select the dist folder from this project.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+**📖 How to Use**
 
-## Can I connect a custom domain to my Lovable project?
+Open your project in Lovable.dev.
 
-Yes, you can!
+Click the Heartbeat icon in your Chrome toolbar (or open the Side Panel).
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Accept the Prompt: "New Project Detected: [Your App Name]".
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Add a Feature: Type a name (e.g., "User Auth") and the Prompt Spec.
+
+Build: When ready, click the Inject button (arrow icon) on the card.
+
+**🏗 Project Structure**
+
+/src: React application logic (Sidebar UI, Context Providers).
+
+/public: Chrome-specific assets (manifest.json, content.js, icons).
+
+content.js: The bridge script that reads the Lovable project name and handles text injection.
+
