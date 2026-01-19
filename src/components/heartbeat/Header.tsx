@@ -37,7 +37,7 @@ export function Header({ onExport, onImport, onNewProject }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-2">
-        <img src="/icon-128.png" alt="Heartbeat" className="w-8 h-8" />
+        <img src="/app-logo.png" alt="Heartbeat" className="w-8 h-8" />
         <h1 className="text-lg font-bold text-foreground">Heartbeat</h1>
       </div>
 

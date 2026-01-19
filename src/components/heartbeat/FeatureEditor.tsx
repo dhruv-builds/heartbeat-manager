@@ -14,13 +14,13 @@ interface FeatureEditorProps {
 
 export function FeatureEditor({ feature, onUpdate, onInject }: FeatureEditorProps) {
   const [title, setTitle] = useState('');
-  const [pulse, setPulse] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (feature) {
       setTitle(feature.title);
-      setPulse(feature.pulse);
+      setPrompt(feature.prompt);
       setHasChanges(false);
     }
   }, [feature?.id]);
@@ -29,9 +29,9 @@ export function FeatureEditor({ feature, onUpdate, onInject }: FeatureEditorProp
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center text-muted-foreground">
-          <p className="text-lg">Select a feature to edit its Pulse</p>
+          <p className="text-lg">Select a feature to edit its Prompt</p>
           <p className="text-sm mt-2">
-            The Pulse is the prompt spec you'll inject into Lovable
+            The Prompt is the spec you'll inject into Lovable
           </p>
         </div>
       </div>
@@ -43,13 +43,13 @@ export function FeatureEditor({ feature, onUpdate, onInject }: FeatureEditorProp
     setHasChanges(true);
   };
 
-  const handlePulseChange = (value: string) => {
-    setPulse(value);
+  const handlePromptChange = (value: string) => {
+    setPrompt(value);
     setHasChanges(true);
   };
 
   const handleSave = () => {
-    onUpdate({ title, pulse });
+    onUpdate({ title, prompt });
     setHasChanges(false);
   };
 
@@ -71,12 +71,12 @@ export function FeatureEditor({ feature, onUpdate, onInject }: FeatureEditorProp
 
       <div className="flex-1 flex flex-col min-h-0">
         <label className="text-sm font-medium text-muted-foreground mb-2">
-          Pulse (Prompt Spec)
+          Prompt
         </label>
         <Textarea
-          value={pulse}
-          onChange={(e) => handlePulseChange(e.target.value)}
-          placeholder="Write your detailed prompt spec here...
+          value={prompt}
+          onChange={(e) => handlePromptChange(e.target.value)}
+          placeholder="Write your detailed prompt here...
 
 Example:
 ## Feature: User Authentication
@@ -121,10 +121,10 @@ Example:
               if (hasChanges) handleSave();
               onInject();
             }}
-            disabled={!pulse.trim()}
+            disabled={!prompt.trim()}
           >
             <Zap className="w-4 h-4 mr-2" />
-            Inject Pulse
+            Inject Prompt
           </Button>
         </div>
       </div>

@@ -63,10 +63,10 @@ export function FeatureItem({
               </span>
               <StatusBadge status={feature.status} onClick={handleStatusClick} />
             </div>
-            {!isCompact && feature.pulse && (
+            {!isCompact && feature.prompt && (
               <p className="text-sm text-muted-foreground truncate mt-1">
-                {feature.pulse.slice(0, 60)}
-                {feature.pulse.length > 60 ? '...' : ''}
+                {feature.prompt.slice(0, 60)}
+                {feature.prompt.length > 60 ? '...' : ''}
               </p>
             )}
           </div>
@@ -80,8 +80,8 @@ export function FeatureItem({
                 e.stopPropagation();
                 onInject();
               }}
-              title="Inject Pulse"
-              disabled={!feature.pulse}
+              title="Inject Prompt"
+              disabled={!feature.prompt}
             >
               <Zap className="w-4 h-4" />
             </Button>

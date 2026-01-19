@@ -85,7 +85,7 @@ export function useProjects() {
       id: generateId(),
       title,
       status: 'backlog',
-      pulse: '',
+      prompt: '',
       order: project.features.length,
       createdAt: now,
       updatedAt: now,
@@ -106,7 +106,7 @@ export function useProjects() {
   const updateFeature = useCallback((
     projectId: string,
     featureId: string,
-    updates: Partial<Pick<Feature, 'title' | 'status' | 'pulse'>>
+    updates: Partial<Pick<Feature, 'title' | 'status' | 'prompt'>>
   ) => {
     setData(prev => ({
       ...prev,
