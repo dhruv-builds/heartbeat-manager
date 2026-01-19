@@ -4,7 +4,7 @@ export interface Feature {
   id: string;
   title: string;
   status: FeatureStatus;
-  pulse: string;
+  prompt: string;
   order: number;
   createdAt: string;
   updatedAt: string;

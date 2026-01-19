@@ -4,7 +4,7 @@ import { useChromeMessaging } from '@/hooks/useChromeMessaging';
 import { Header } from '@/components/heartbeat/Header';
 import { ProjectSelector } from '@/components/heartbeat/ProjectSelector';
 import { FeatureList } from '@/components/heartbeat/FeatureList';
-import { FeatureEditor } from '@/components/heartbeat/FeatureEditor';
+import { FeatureDetailSheet } from '@/components/heartbeat/FeatureDetailSheet';
 import { NewProjectDialog } from '@/components/heartbeat/NewProjectDialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,16 +30,9 @@ export default function Dashboard() {
   const { toast } = useToast();
 
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [suggestedProjectName, setSuggestedProjectName] = useState<string | null>(null);
-  const [isWide, setIsWide] = useState(window.innerWidth >= 600);
-
-  // Handle responsive layout
-  useEffect(() => {
-    const handleResize = () => setIsWide(window.innerWidth >= 600);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Auto-detect Lovable project
   useEffect(() => {
@@ -87,15 +80,15 @@ export default function Dashboard() {
     }
   };
 
-  const handleInjectPulse = async (featureId: string) => {
+  const handleInjectPrompt = async (featureId: string): Promise<boolean> => {
     const feature = activeProject?.features.find(f => f.id === featureId);
-    if (!feature?.pulse) return;
+    if (!feature?.prompt) return false;
 
-    const success = await injectPrompt(feature.pulse);
+    const success = await injectPrompt(feature.prompt);
     
     if (success) {
       toast({
-        title: 'Pulse injected!',
+        title: 'Prompt injected!',
         description: isExtension 
           ? 'Your prompt is ready in the chat. Press Enter to send.' 
           : 'Copied to clipboard (dev mode).',
@@ -107,11 +100,18 @@ export default function Dashboard() {
         variant: 'destructive',
       });
     }
+    
+    return success;
   };
 
   const handleCreateProject = (name: string) => {
     createProject(name);
     setSuggestedProjectName(null);
+  };
+
+  const handleSelectFeature = (featureId: string) => {
+    setSelectedFeatureId(featureId);
+    setIsDetailSheetOpen(true);
   };
 
   return (
@@ -134,50 +134,38 @@ export default function Dashboard() {
       />
 
       {activeProject ? (
-        <div className={`flex-1 flex overflow-hidden ${isWide ? 'flex-row' : 'flex-col'}`}>
-          <div className={`${isWide ? 'w-80 border-r border-border' : 'flex-1'} flex flex-col overflow-hidden`}>
-            <FeatureList
-              features={activeProject.features}
-              selectedFeatureId={selectedFeatureId}
-              onSelectFeature={setSelectedFeatureId}
-              onCreateFeature={(title) => {
-                const feature = createFeature(activeProject.id, title);
-                if (feature) setSelectedFeatureId(feature.id);
-              }}
-              onUpdateFeature={(featureId, updates) =>
-                updateFeature(activeProject.id, featureId, updates)
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <FeatureList
+            features={activeProject.features}
+            selectedFeatureId={selectedFeatureId}
+            onSelectFeature={handleSelectFeature}
+            onCreateFeature={(title) => {
+              const feature = createFeature(activeProject.id, title);
+              if (feature) {
+                setSelectedFeatureId(feature.id);
+                setIsDetailSheetOpen(true);
               }
-              onDeleteFeature={(featureId) => {
-                deleteFeature(activeProject.id, featureId);
-                if (selectedFeatureId === featureId) {
-                  setSelectedFeatureId(null);
-                }
-              }}
-              onDuplicateFeature={(featureId) => {
-                const newFeature = duplicateFeature(activeProject.id, featureId);
-                if (newFeature) setSelectedFeatureId(newFeature.id);
-              }}
-              onReorderFeatures={(features) => reorderFeatures(activeProject.id, features)}
-              onInjectPulse={handleInjectPulse}
-              isCompact={!isWide}
-            />
-          </div>
-
-          {isWide && (
-            <FeatureEditor
-              feature={selectedFeature}
-              onUpdate={(updates) => {
-                if (selectedFeatureId && activeProject) {
-                  updateFeature(activeProject.id, selectedFeatureId, updates);
-                }
-              }}
-              onInject={() => {
-                if (selectedFeatureId) {
-                  handleInjectPulse(selectedFeatureId);
-                }
-              }}
-            />
-          )}
+            }}
+            onUpdateFeature={(featureId, updates) =>
+              updateFeature(activeProject.id, featureId, updates)
+            }
+            onDeleteFeature={(featureId) => {
+              deleteFeature(activeProject.id, featureId);
+              if (selectedFeatureId === featureId) {
+                setSelectedFeatureId(null);
+                setIsDetailSheetOpen(false);
+              }
+            }}
+            onDuplicateFeature={(featureId) => {
+              const newFeature = duplicateFeature(activeProject.id, featureId);
+              if (newFeature) {
+                setSelectedFeatureId(newFeature.id);
+                setIsDetailSheetOpen(true);
+              }
+            }}
+            onReorderFeatures={(features) => reorderFeatures(activeProject.id, features)}
+            onInjectPrompt={handleInjectPrompt}
+          />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center p-8">
@@ -198,6 +186,18 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <FeatureDetailSheet
+        feature={selectedFeature}
+        open={isDetailSheetOpen}
+        onOpenChange={setIsDetailSheetOpen}
+        onUpdate={(updates) => {
+          if (selectedFeatureId && activeProject) {
+            updateFeature(activeProject.id, selectedFeatureId, updates);
+          }
+        }}
+        onInject={() => selectedFeatureId ? handleInjectPrompt(selectedFeatureId) : Promise.resolve(false)}
+      />
 
       <NewProjectDialog
         open={showNewProjectDialog}

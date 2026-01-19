@@ -15,7 +15,7 @@ interface FeatureListProps {
   onDeleteFeature: (featureId: string) => void;
   onDuplicateFeature: (featureId: string) => void;
   onReorderFeatures: (features: Feature[]) => void;
-  onInjectPulse: (featureId: string) => void;
+  onInjectPrompt: (featureId: string) => void;
   isCompact?: boolean;
 }
 
@@ -28,7 +28,7 @@ export function FeatureList({
   onDeleteFeature,
   onDuplicateFeature,
   onReorderFeatures,
-  onInjectPulse,
+  onInjectPrompt,
   isCompact = false,
 }: FeatureListProps) {
   const [newFeatureTitle, setNewFeatureTitle] = useState('');
@@ -126,7 +126,7 @@ export function FeatureList({
                       }
                       onDuplicate={() => onDuplicateFeature(feature.id)}
                       onDelete={() => onDeleteFeature(feature.id)}
-                      onInject={() => onInjectPulse(feature.id)}
+                      onInject={() => onInjectPrompt(feature.id)}
                       isCompact={isCompact}
                     />
                   ))}
