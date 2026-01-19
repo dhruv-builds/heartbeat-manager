@@ -26,15 +26,16 @@ export default function Dashboard() {
     findProjectByName,
   } = useProjects();
 
-  const { isExtension, pageInfo, injectPrompt } = useChromeMessaging();
+  const { isExtension, pageInfo, checkCurrentPage, injectPrompt } = useChromeMessaging();
   const { toast } = useToast();
 
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [suggestedProjectName, setSuggestedProjectName] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Auto-detect Lovable project
+  // Auto-detect Lovable project on initial load and when pageInfo changes
   useEffect(() => {
     if (pageInfo?.isLovable && pageInfo.projectName) {
       const existingProject = findProjectByName(pageInfo.projectName);
@@ -48,6 +49,45 @@ export default function Dashboard() {
   }, [pageInfo, findProjectByName, setActiveProject]);
 
   const selectedFeature = activeProject?.features.find(f => f.id === selectedFeatureId) || null;
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    
+    try {
+      const info = await checkCurrentPage();
+      
+      if (info?.isLovable && info.projectName) {
+        const existingProject = findProjectByName(info.projectName);
+        if (existingProject) {
+          setActiveProject(existingProject.id);
+          toast({
+            title: 'Synced!',
+            description: `Switched to "${info.projectName}"`,
+          });
+        } else {
+          setSuggestedProjectName(info.projectName);
+          setShowNewProjectDialog(true);
+          toast({
+            title: 'New project detected',
+            description: `"${info.projectName}" - Create it to start tracking features.`,
+          });
+        }
+      } else {
+        toast({
+          title: 'Synced',
+          description: 'No Lovable project detected on current page.',
+        });
+      }
+    } catch (e) {
+      toast({
+        title: 'Sync failed',
+        description: 'Could not connect to the current page.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleExport = () => {
     const data = exportData();
@@ -96,7 +136,7 @@ export default function Dashboard() {
     } else {
       toast({
         title: 'Injection failed',
-        description: 'Could not find the Lovable chat input.',
+        description: 'Could not find the Lovable chat input. Make sure you\'re on a Lovable project page with the chat visible.',
         variant: 'destructive',
       });
     }
@@ -123,6 +163,8 @@ export default function Dashboard() {
           setSuggestedProjectName(null);
           setShowNewProjectDialog(true);
         }}
+        onSync={handleSync}
+        isSyncing={isSyncing}
       />
 
       <ProjectSelector

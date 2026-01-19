@@ -2,6 +2,7 @@
 // Handles communication between the extension and the Lovable page
 
 const DEBUG_CREDITS = false;
+const DEBUG_INJECT = false;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CHECK_CURRENT_PAGE') {
@@ -42,37 +43,79 @@ function handleCheckCurrentPage(sendResponse) {
 }
 
 function handleInjectPrompt(text, sendResponse) {
-  // Find the chat textarea in Lovable
-  const textarea = document.querySelector('textarea[placeholder*="Message"]') 
-    || document.querySelector('textarea')
-    || document.querySelector('[contenteditable="true"]');
+  // Primary selector - Lovable's chat input with aria-label
+  let chatInput = document.querySelector('[aria-label="Chat input"][contenteditable="true"]');
   
-  if (!textarea) {
-    sendResponse({ success: false, error: 'Could not find chat input' });
+  // Fallback selectors in order of preference
+  if (!chatInput) {
+    chatInput = document.querySelector('div[contenteditable="true"].ProseMirror');
+  }
+  if (!chatInput) {
+    chatInput = document.querySelector('.tiptap[contenteditable="true"]');
+  }
+  if (!chatInput) {
+    chatInput = document.querySelector('textarea[placeholder*="Ask"]');
+  }
+  if (!chatInput) {
+    chatInput = document.querySelector('textarea[placeholder*="Message"]');
+  }
+  if (!chatInput) {
+    // Last resort - any contenteditable
+    chatInput = document.querySelector('[contenteditable="true"]');
+  }
+
+  if (!chatInput) {
+    if (DEBUG_INJECT) {
+      console.error('[Heartbeat Debug] Could not find chat input. Selector results:', {
+        ariaLabel: document.querySelectorAll('[aria-label="Chat input"]').length,
+        proseMirror: document.querySelectorAll('.ProseMirror[contenteditable]').length,
+        tiptap: document.querySelectorAll('.tiptap[contenteditable]').length,
+        anyContentEditable: document.querySelectorAll('[contenteditable="true"]').length
+      });
+    }
+    sendResponse({ success: false, error: 'Chat input element not found on page' });
     return;
   }
-  
+
   try {
-    // Handle both textarea and contenteditable elements
-    if (textarea.tagName === 'TEXTAREA' || textarea.tagName === 'INPUT') {
-      textarea.value = text;
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    // Scroll into view and focus
+    chatInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    chatInput.focus();
+
+    // For contenteditable elements (Lovable uses ProseMirror/Tiptap)
+    if (chatInput.getAttribute('contenteditable') === 'true') {
+      // Clear existing content first
+      chatInput.innerHTML = '';
+      
+      // Use execCommand for best compatibility with contenteditable
+      const success = document.execCommand('insertText', false, text);
+      
+      // Fallback: set innerHTML directly if execCommand fails
+      if (!success || chatInput.textContent.trim() === '') {
+        chatInput.innerHTML = '<p>' + text + '</p>';
+      }
+      
+      // Dispatch events so React/ProseMirror detects the change
+      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+      chatInput.dispatchEvent(new Event('change', { bubbles: true }));
     } else {
-      // For contenteditable
-      textarea.textContent = text;
-      textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: text }));
+      // Standard textarea/input
+      chatInput.value = text;
+      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+      
+      // Move cursor to end
+      if (chatInput.setSelectionRange) {
+        chatInput.setSelectionRange(text.length, text.length);
+      }
     }
-    
-    // Focus the textarea so user can immediately press Enter
-    textarea.focus();
-    
-    // Move cursor to end
-    if (textarea.setSelectionRange) {
-      textarea.setSelectionRange(text.length, text.length);
+
+    if (DEBUG_INJECT) {
+      console.log('[Heartbeat] Successfully injected prompt into:', chatInput.tagName);
     }
-    
+
     sendResponse({ success: true });
   } catch (error) {
+    console.error('[Heartbeat] Injection error:', error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -95,7 +138,7 @@ function handleGetCredits(sendResponse) {
     
     if (!creditsPanelLabel) {
       if (DEBUG_CREDITS) console.log('[Heartbeat] Credits panel label not found');
-      sendResponse({ error: 'credits_panel_not_found' });
+      sendResponse({ freeCreditsAvailable: false, timestamp: Date.now() });
       return;
     }
 
@@ -103,42 +146,26 @@ function handleGetCredits(sendResponse) {
     let creditsContainer = creditsPanelLabel.parentElement;
     // Go up a few levels to get the full credits section
     for (let i = 0; i < 5 && creditsContainer; i++) {
-      if (creditsContainer.textContent?.includes('left')) break;
+      if (creditsContainer.textContent?.includes('Daily credits')) break;
       creditsContainer = creditsContainer.parentElement;
     }
 
     if (!creditsContainer) {
       if (DEBUG_CREDITS) console.log('[Heartbeat] Credits container not found');
-      sendResponse({ error: 'credits_container_not_found' });
+      sendResponse({ freeCreditsAvailable: false, timestamp: Date.now() });
       return;
     }
 
     if (DEBUG_CREDITS) console.log('[Heartbeat] Found credits container:', creditsContainer.textContent?.substring(0, 100));
 
-    // Find total credits (e.g., "44.9 left")
-    const containerParagraphs = Array.from(creditsContainer.querySelectorAll('p'));
-    const creditsTextEl = containerParagraphs.find(p => /\d+(\.\d+)?\s+left$/.test(p.textContent?.trim() || ''));
-    
-    let totalCreditsRemaining = null;
-    if (creditsTextEl) {
-      const match = creditsTextEl.textContent?.match(/(\d+(\.\d+)?)\s+left/);
-      if (match) {
-        totalCreditsRemaining = parseFloat(match[1]);
-        if (DEBUG_CREDITS) console.log('[Heartbeat] Parsed total credits:', totalCreditsRemaining);
-      }
-    } else {
-      if (DEBUG_CREDITS) console.log('[Heartbeat] Credits text element not found');
-    }
-
-    // Check for daily credits availability
+    // Check for free daily credits availability
     const containerText = creditsContainer.textContent || '';
-    const dailyCreditsAvailable = containerText.includes('Daily credits used first');
+    const freeCreditsAvailable = containerText.includes('Daily credits used first');
     
-    if (DEBUG_CREDITS) console.log('[Heartbeat] Daily credits available:', dailyCreditsAvailable);
+    if (DEBUG_CREDITS) console.log('[Heartbeat] Free credits available:', freeCreditsAvailable);
 
     sendResponse({
-      totalCreditsRemaining,
-      dailyCreditsAvailable,
+      freeCreditsAvailable,
       timestamp: Date.now()
     });
   } catch (error) {
