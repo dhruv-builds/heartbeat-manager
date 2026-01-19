@@ -1,4 +1,4 @@
-import { Download, Upload, Plus, RefreshCw } from 'lucide-react';
+import { Download, Upload, Plus, RefreshCw, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,16 +7,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRef } from 'react';
-import { useCredits, formatRelativeTime } from '@/hooks/useCredits';
+import { useCredits } from '@/hooks/useCredits';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onExport: () => void;
   onImport: (json: string) => void;
   onNewProject: () => void;
+  onSync?: () => Promise<void>;
+  isSyncing?: boolean;
 }
 
-export function Header({ onExport, onImport, onNewProject }: HeaderProps) {
+export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { credits, isLoading, error, fetchCredits } = useCredits();
 
@@ -37,6 +39,13 @@ export function Header({ onExport, onImport, onNewProject }: HeaderProps) {
     }
   };
 
+  const handleRefresh = async () => {
+    fetchCredits();
+    if (onSync) {
+      await onSync();
+    }
+  };
+
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-2">
@@ -44,42 +53,31 @@ export function Header({ onExport, onImport, onNewProject }: HeaderProps) {
         <h1 className="text-lg font-bold text-foreground">Heartbeat</h1>
       </div>
 
-      {/* Credits Widget */}
+      {/* Simplified Credits Badge */}
       <div className="flex items-center gap-2">
-        {error ? (
-          <span className="text-xs text-muted-foreground">Credits: --</span>
-        ) : (
-          <>
-            <span
-              className={cn(
-                'text-xs font-medium px-2 py-0.5 rounded',
-                credits.dailyCreditsAvailable
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'bg-muted text-muted-foreground'
-              )}
-            >
-              Daily: {credits.dailyCreditsAvailable ? '✓' : '–'}
-            </span>
-            <span className="text-sm text-foreground">
-              Total: {credits.totalCreditsRemaining?.toFixed(1) ?? '--'}
-            </span>
-          </>
-        )}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+          <span
+            className={cn(
+              'w-2 h-2 rounded-full',
+              error || credits.freeCreditsAvailable === null
+                ? 'bg-muted-foreground'
+                : credits.freeCreditsAvailable
+                ? 'bg-green-500'
+                : 'bg-red-500'
+            )}
+          />
+          <span className="text-xs font-medium text-foreground">Free Credits</span>
+        </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
-          onClick={fetchCredits}
-          disabled={isLoading}
-          title="Refresh credits"
+          className="h-7 w-7"
+          onClick={handleRefresh}
+          disabled={isLoading || isSyncing}
+          title="Sync project & credits"
         >
-          <RefreshCw className={cn('w-3 h-3', isLoading && 'animate-spin')} />
+          <RefreshCcw className={cn('w-3.5 h-3.5', (isLoading || isSyncing) && 'animate-spin')} />
         </Button>
-        {credits.lastUpdated && (
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(credits.lastUpdated)}
-          </span>
-        )}
       </div>
 
       <div className="flex items-center gap-2">

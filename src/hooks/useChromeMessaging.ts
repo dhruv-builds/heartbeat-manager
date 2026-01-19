@@ -11,7 +11,8 @@ declare const chrome: {
   runtime?: {
     id?: string;
     onMessage?: {
-      addListener: (callback: (message: unknown, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void) => void;
+      addListener: (callback: (message: { type: string; tabId?: number }, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void) => void;
+      removeListener: (callback: (message: { type: string; tabId?: number }, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void) => void;
     };
   };
   tabs?: {
@@ -85,6 +86,24 @@ export function useChromeMessaging() {
       return false;
     }
   }, [isExtension]);
+
+  // Listen for tab change messages from background script
+  useEffect(() => {
+    if (!isExtension || !chrome.runtime?.onMessage) return;
+
+    const handleMessage = (message: { type: string; tabId?: number }) => {
+      if (message.type === 'TAB_CHANGED') {
+        // Re-check current page when tab changes
+        checkCurrentPage();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    
+    return () => {
+      chrome.runtime.onMessage?.removeListener(handleMessage);
+    };
+  }, [isExtension, checkCurrentPage]);
 
   useEffect(() => {
     checkCurrentPage();

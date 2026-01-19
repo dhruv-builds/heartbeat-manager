@@ -18,15 +18,13 @@ declare const chrome: {
 };
 
 interface CreditsResponse {
-  totalCreditsRemaining?: number | null;
-  dailyCreditsAvailable?: boolean;
+  freeCreditsAvailable?: boolean;
   timestamp?: number;
   error?: string;
 }
 
 export interface CreditsData {
-  totalCreditsRemaining: number | null;
-  dailyCreditsAvailable: boolean;
+  freeCreditsAvailable: boolean | null; // null = unknown/loading
   lastUpdated: Date | null;
 }
 
@@ -36,8 +34,7 @@ function isChromeExtension(): boolean {
 
 export function useCredits() {
   const [credits, setCredits] = useState<CreditsData>({
-    totalCreditsRemaining: null,
-    dailyCreditsAvailable: false,
+    freeCreditsAvailable: null,
     lastUpdated: null,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -47,8 +44,7 @@ export function useCredits() {
     if (!isChromeExtension()) {
       // In development/non-extension mode, return mock data
       setCredits({
-        totalCreditsRemaining: 44.9,
-        dailyCreditsAvailable: true,
+        freeCreditsAvailable: true,
         lastUpdated: new Date(),
       });
       return;
@@ -92,8 +88,7 @@ export function useCredits() {
             }
 
             setCredits({
-              totalCreditsRemaining: response.totalCreditsRemaining ?? null,
-              dailyCreditsAvailable: response.dailyCreditsAvailable ?? false,
+              freeCreditsAvailable: response.freeCreditsAvailable ?? null,
               lastUpdated: new Date(),
             });
           }
