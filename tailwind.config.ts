@@ -47,9 +47,9 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        heartbeat: {
-          DEFAULT: "hsl(var(--heartbeat))",
-          foreground: "hsl(var(--heartbeat-foreground))",
+        lavalog: {
+          DEFAULT: "hsl(var(--lavalog))",
+          foreground: "hsl(var(--lavalog-foreground))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",

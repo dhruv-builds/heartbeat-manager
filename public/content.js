@@ -1,8 +1,9 @@
-// Heartbeat Content Script
+// LavaLog Content Script
 // Handles communication between the extension and the Lovable page
 
 const DEBUG_CREDITS = false;
 const DEBUG_INJECT = false;
+const CREDITS_STORAGE_KEY = 'lavalog_credits_status';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CHECK_CURRENT_PAGE') {
@@ -66,7 +67,7 @@ function handleInjectPrompt(text, sendResponse) {
 
   if (!chatInput) {
     if (DEBUG_INJECT) {
-      console.error('[Heartbeat Debug] Could not find chat input. Selector results:', {
+      console.error('[LavaLog Debug] Could not find chat input. Selector results:', {
         ariaLabel: document.querySelectorAll('[aria-label="Chat input"]').length,
         proseMirror: document.querySelectorAll('.ProseMirror[contenteditable]').length,
         tiptap: document.querySelectorAll('.tiptap[contenteditable]').length,
@@ -110,12 +111,12 @@ function handleInjectPrompt(text, sendResponse) {
     }
 
     if (DEBUG_INJECT) {
-      console.log('[Heartbeat] Successfully injected prompt into:', chatInput.tagName);
+      console.log('[LavaLog] Successfully injected prompt into:', chatInput.tagName);
     }
 
     sendResponse({ success: true });
   } catch (error) {
-    console.error('[Heartbeat] Injection error:', error);
+    console.error('[LavaLog] Injection error:', error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -124,52 +125,130 @@ function handleGetCredits(sendResponse) {
   const hostname = window.location.hostname;
   
   if (!hostname.includes('lovable.dev') && !hostname.includes('lovable.app')) {
-    if (DEBUG_CREDITS) console.log('[Heartbeat] Not on Lovable, skipping credits fetch');
+    if (DEBUG_CREDITS) console.log('[LavaLog] Not on Lovable, skipping credits fetch');
     sendResponse({ error: 'not_lovable' });
     return;
   }
 
+  const today = new Date().toDateString();
+
   try {
-    if (DEBUG_CREDITS) console.log('[Heartbeat] Starting credits scrape...');
+    if (DEBUG_CREDITS) console.log('[LavaLog] Starting credits scrape...');
 
     // Find Credits panel by locating a <p> with exact text "Credits"
     const allParagraphs = Array.from(document.querySelectorAll('p'));
     const creditsPanelLabel = allParagraphs.find(p => p.textContent?.trim() === 'Credits');
     
-    if (!creditsPanelLabel) {
-      if (DEBUG_CREDITS) console.log('[Heartbeat] Credits panel label not found');
-      sendResponse({ freeCreditsAvailable: false, timestamp: Date.now() });
-      return;
+    if (creditsPanelLabel) {
+      // Panel found - scrape actual status
+      let creditsContainer = creditsPanelLabel.parentElement;
+      for (let i = 0; i < 5 && creditsContainer; i++) {
+        if (creditsContainer.textContent?.includes('Daily credits')) break;
+        creditsContainer = creditsContainer.parentElement;
+      }
+
+      const containerText = creditsContainer?.textContent || '';
+      const hasNegativeIndicator = containerText.includes('0/5') || containerText.includes('0 left') || containerText.includes('No credits');
+      const hasPositiveIndicator = containerText.includes('Daily credits used first');
+
+      if (DEBUG_CREDITS) console.log('[LavaLog] Container text:', containerText.substring(0, 200));
+
+      let status = 'unknown';
+      if (hasPositiveIndicator && !hasNegativeIndicator) {
+        status = 'available';
+      } else if (hasNegativeIndicator) {
+        status = 'none';
+      }
+
+      // Persist to localStorage
+      if (status !== 'unknown') {
+        localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ status, date: today }));
+      }
+
+      if (DEBUG_CREDITS) console.log('[LavaLog] Credits status:', status);
+
+      sendResponse({
+        freeCreditsAvailable: status === 'available' ? true : status === 'none' ? false : null,
+        status,
+        timestamp: Date.now()
+      });
+    } else {
+      // Panel not found - check localStorage for today's cached status
+      if (DEBUG_CREDITS) console.log('[LavaLog] Credits panel not found, checking cache...');
+      
+      try {
+        const cached = JSON.parse(localStorage.getItem(CREDITS_STORAGE_KEY) || '{}');
+        if (cached.date === today && cached.status && cached.status !== 'unknown') {
+          if (DEBUG_CREDITS) console.log('[LavaLog] Using cached status:', cached.status);
+          sendResponse({
+            freeCreditsAvailable: cached.status === 'available',
+            status: cached.status,
+            timestamp: Date.now()
+          });
+          return;
+        }
+      } catch (e) {
+        // Ignore cache errors
+      }
+
+      sendResponse({
+        freeCreditsAvailable: null,
+        status: 'unknown',
+        timestamp: Date.now()
+      });
     }
-
-    // Navigate up to find the containing panel
-    let creditsContainer = creditsPanelLabel.parentElement;
-    // Go up a few levels to get the full credits section
-    for (let i = 0; i < 5 && creditsContainer; i++) {
-      if (creditsContainer.textContent?.includes('Daily credits')) break;
-      creditsContainer = creditsContainer.parentElement;
-    }
-
-    if (!creditsContainer) {
-      if (DEBUG_CREDITS) console.log('[Heartbeat] Credits container not found');
-      sendResponse({ freeCreditsAvailable: false, timestamp: Date.now() });
-      return;
-    }
-
-    if (DEBUG_CREDITS) console.log('[Heartbeat] Found credits container:', creditsContainer.textContent?.substring(0, 100));
-
-    // Check for free daily credits availability
-    const containerText = creditsContainer.textContent || '';
-    const freeCreditsAvailable = containerText.includes('Daily credits used first');
-    
-    if (DEBUG_CREDITS) console.log('[Heartbeat] Free credits available:', freeCreditsAvailable);
-
-    sendResponse({
-      freeCreditsAvailable,
-      timestamp: Date.now()
-    });
   } catch (error) {
-    if (DEBUG_CREDITS) console.error('[Heartbeat] Credits scraping error:', error);
+    if (DEBUG_CREDITS) console.error('[LavaLog] Credits scraping error:', error);
     sendResponse({ error: error.message });
   }
 }
+
+// Credits invalidation - detect when user consumes a credit
+function setupCreditsInvalidation() {
+  const hostname = window.location.hostname;
+  if (!hostname.includes('lovable.dev') && !hostname.includes('lovable.app')) return;
+
+  const today = new Date().toDateString();
+
+  // Listen for Enter key in chat input (submitting a prompt)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const chatInput = document.querySelector('[aria-label="Chat input"][contenteditable="true"]');
+      if (chatInput && document.activeElement === chatInput && chatInput.textContent?.trim()) {
+        // Invalidate credits status
+        localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ 
+          status: 'none', 
+          date: today 
+        }));
+        // Notify extension
+        try {
+          chrome.runtime.sendMessage({ type: 'CREDITS_CONSUMED' });
+        } catch (e) {
+          // Extension context might not be available
+        }
+      }
+    }
+  });
+
+  // Listen for Send button clicks
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    const sendButton = target.closest && target.closest('button[type="submit"], button[aria-label*="Send"], button[aria-label*="send"]');
+    if (sendButton) {
+      localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ 
+        status: 'none', 
+        date: today 
+      }));
+      try {
+        chrome.runtime.sendMessage({ type: 'CREDITS_CONSUMED' });
+      } catch (e) {
+        // Extension context might not be available
+      }
+    }
+  }, true);
+
+  if (DEBUG_CREDITS) console.log('[LavaLog] Credits invalidation listeners set up');
+}
+
+// Initialize on page load
+setupCreditsInvalidation();

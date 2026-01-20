@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Heartbeat Design System - Dark mode default with Heartbeat Red accent */
+/* LavaLog Design System - Dark mode default with Lava Red accent */
 
 @layer base {
   :root {
@@ -36,9 +36,9 @@
 
     --radius: 0.5rem;
 
-    /* Heartbeat brand color */
-    --heartbeat: 340 82% 62%;
-    --heartbeat-foreground: 0 0% 100%;
+    /* LavaLog brand color */
+    --lavalog: 340 82% 62%;
+    --lavalog-foreground: 0 0% 100%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -79,9 +79,9 @@
     --input: 240 5% 18%;
     --ring: 340 82% 62%;
 
-    /* Heartbeat brand color (same in dark) */
-    --heartbeat: 340 82% 62%;
-    --heartbeat-foreground: 0 0% 100%;
+    /* LavaLog brand color (same in dark) */
+    --lavalog: 340 82% 62%;
+    --lavalog-foreground: 0 0% 100%;
 
     --sidebar-background: 240 10% 6%;
     --sidebar-foreground: 0 0% 95%;

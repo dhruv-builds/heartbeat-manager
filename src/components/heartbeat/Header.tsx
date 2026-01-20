@@ -1,4 +1,4 @@
-import { Download, Upload, Plus, RefreshCw, RefreshCcw } from 'lucide-react';
+import { Download, Upload, Plus, MoreVertical, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRef } from 'react';
-import { useCredits } from '@/hooks/useCredits';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -20,27 +19,22 @@ interface HeaderProps {
 
 export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { credits, isLoading, error, fetchCredits } = useCredits();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      onImport(content);
-    };
-    reader.readAsText(file);
-
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        onImport(content);
+      };
+      reader.readAsText(file);
     }
+    // Reset input so the same file can be selected again
+    e.target.value = '';
   };
 
   const handleRefresh = async () => {
-    fetchCredits();
     if (onSync) {
       await onSync();
     }
@@ -49,51 +43,46 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-2">
-        <img src="/app-logo.png" alt="Heartbeat" className="w-8 h-8" />
-        <h1 className="text-lg font-bold text-foreground">Heartbeat</h1>
-      </div>
-
-      {/* Simplified Credits Badge */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full',
-              error || credits.freeCreditsAvailable === null
-                ? 'bg-muted-foreground'
-                : credits.freeCreditsAvailable
-                ? 'bg-green-500'
-                : 'bg-red-500'
-            )}
-          />
-          <span className="text-xs font-medium text-foreground">Free Credits</span>
+        <img 
+          src="./app-logo.png" 
+          alt="LavaLog" 
+          className="w-6 h-6 object-contain"
+        />
+        <div>
+          <h1 className="text-base font-bold text-foreground">LavaLog</h1>
+          <p className="text-[10px] text-muted-foreground -mt-0.5">Lovable Backlog Manager</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={handleRefresh}
-          disabled={isLoading || isSyncing}
-          title="Sync project & credits"
-        >
-          <RefreshCcw className={cn('w-3.5 h-3.5', (isLoading || isSyncing) && 'animate-spin')} />
-        </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        {/* Sync Button */}
         <Button
           variant="ghost"
           size="icon"
+          onClick={handleRefresh}
+          disabled={isSyncing}
+          className="h-8 w-8"
+          title="Sync with Lovable"
+        >
+          <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
+        </Button>
+
+        {/* New Project Button */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
           onClick={onNewProject}
+          className="h-8 w-8"
           title="New Project"
         >
           <Plus className="w-4 h-4" />
         </Button>
 
+        {/* Import/Export Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" title="Import/Export">
-              <Download className="w-4 h-4" />
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
