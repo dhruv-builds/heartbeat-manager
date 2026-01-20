@@ -3,6 +3,10 @@ import { useState, useCallback, useEffect } from 'react';
 declare const chrome: {
   runtime?: {
     id?: string;
+    onMessage?: {
+      addListener: (callback: (message: { type: string }, sender: unknown, sendResponse: (response?: unknown) => void) => void) => void;
+      removeListener: (callback: (message: { type: string }, sender: unknown, sendResponse: (response?: unknown) => void) => void) => void;
+    };
   };
   tabs?: {
     query: (
@@ -18,13 +22,14 @@ declare const chrome: {
 };
 
 interface CreditsResponse {
-  freeCreditsAvailable?: boolean;
+  freeCreditsAvailable?: boolean | null;
+  status?: string;
   timestamp?: number;
   error?: string;
 }
 
 export interface CreditsData {
-  freeCreditsAvailable: boolean | null; // null = unknown/loading
+  freeCreditsAvailable: boolean | null; // true = available, false = none, null = unknown
   lastUpdated: Date | null;
 }
 
@@ -68,7 +73,7 @@ export function useCredits() {
           (response: CreditsResponse) => {
             setIsLoading(false);
 
-            if (chrome.runtime && (chrome.runtime as any).lastError) {
+            if (chrome.runtime && (chrome.runtime as unknown as { lastError?: { message: string } }).lastError) {
               setError('Could not connect to page');
               return;
             }
@@ -98,6 +103,25 @@ export function useCredits() {
       setIsLoading(false);
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
+  }, []);
+
+  // Listen for CREDITS_CONSUMED messages from content script
+  useEffect(() => {
+    if (!isChromeExtension()) return;
+
+    const handleMessage = (message: { type: string }) => {
+      if (message.type === 'CREDITS_CONSUMED') {
+        setCredits({
+          freeCreditsAvailable: false,
+          lastUpdated: new Date(),
+        });
+      }
+    };
+
+    chrome.runtime?.onMessage?.addListener(handleMessage);
+    return () => {
+      chrome.runtime?.onMessage?.removeListener(handleMessage);
+    };
   }, []);
 
   // Fetch on mount and auto-refresh every 60 seconds

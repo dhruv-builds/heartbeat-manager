@@ -6,6 +6,7 @@ import { ProjectSelector } from '@/components/heartbeat/ProjectSelector';
 import { FeatureList } from '@/components/heartbeat/FeatureList';
 import { FeatureDetailSheet } from '@/components/heartbeat/FeatureDetailSheet';
 import { NewProjectDialog } from '@/components/heartbeat/NewProjectDialog';
+import { CreditsBadge } from '@/components/heartbeat/CreditsBadge';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
@@ -95,12 +96,12 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `heartbeat-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `lavalog-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast({
       title: 'Exported!',
-      description: 'Your Heartbeat data has been downloaded.',
+      description: 'Your LavaLog data has been downloaded.',
     });
   };
 
@@ -167,6 +168,14 @@ export default function Dashboard() {
         isSyncing={isSyncing}
       />
 
+      {/* Credits + Project Selector Row */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Project
+        </span>
+        <CreditsBadge />
+      </div>
+
       <ProjectSelector
         projects={projects}
         activeProject={activeProject}
@@ -220,7 +229,7 @@ export default function Dashboard() {
             {projects.length === 0 && (
               <button
                 onClick={() => setShowNewProjectDialog(true)}
-                className="text-heartbeat hover:underline"
+                className="text-lavalog hover:underline"
               >
                 Create a project
               </button>

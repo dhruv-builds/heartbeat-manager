@@ -1,15 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Heartbeat",
-  "description": "The backlog manager for Lovable builders.",
-  "version": "1.0",
+  "name": "LavaLog",
+  "short_name": "LavaLog",
+  "description": "Lovable Backlog Manager - Manage your Lovable project features and prompts",
+  "version": "1.0.0",
   "icons": {
     "16": "icon-128.png",
     "48": "icon-128.png",
     "128": "icon-128.png"
   },
-  "action": {},
-  "permissions": ["sidePanel", "scripting", "activeTab", "storage"],
+  "action": {
+    "default_icon": "icon-128.png",
+    "default_title": "LavaLog"
+  },
+  "permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs"],
+  "host_permissions": ["https://*.lovable.dev/*", "https://*.lovable.app/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -18,8 +23,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": ["https://*.lovable.dev/*", "https://*.lovable.app/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }

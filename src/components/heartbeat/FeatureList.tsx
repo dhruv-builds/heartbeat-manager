@@ -35,6 +35,10 @@ export function FeatureList({
   const [isAdding, setIsAdding] = useState(false);
 
   const sortedFeatures = [...features].sort((a, b) => a.order - b.order);
+  
+  // Split into active and completed tasks
+  const activeTasks = sortedFeatures.filter(f => f.status !== 'done');
+  const completedTasks = sortedFeatures.filter(f => f.status === 'done');
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -63,7 +67,7 @@ export function FeatureList({
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 text-heartbeat hover:text-heartbeat hover:bg-heartbeat/20"
+          className="h-7 text-lavalog hover:text-lavalog hover:bg-lavalog/20"
           onClick={() => setIsAdding(true)}
         >
           <Plus className="w-4 h-4 mr-1" />
@@ -73,7 +77,7 @@ export function FeatureList({
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {isAdding && (
-          <div className="flex items-center gap-2 p-2 rounded-lg border border-heartbeat bg-heartbeat/10">
+          <div className="flex items-center gap-2 p-2 rounded-lg border border-lavalog bg-lavalog/10">
             <Input
               value={newFeatureTitle}
               onChange={(e) => setNewFeatureTitle(e.target.value)}
@@ -99,7 +103,7 @@ export function FeatureList({
             <p className="text-muted-foreground text-sm">No features yet</p>
             <Button
               variant="link"
-              className="text-heartbeat mt-2"
+              className="text-lavalog mt-2"
               onClick={() => setIsAdding(true)}
             >
               Add your first feature
@@ -114,12 +118,42 @@ export function FeatureList({
                   {...provided.droppableProps}
                   className="space-y-2"
                 >
-                  {sortedFeatures.map((feature, index) => (
+                  {/* Active Tasks (Backlog, In Progress) */}
+                  {activeTasks.map((feature, index) => (
                     <FeatureItem
                       key={feature.id}
                       feature={feature}
                       index={index}
                       isSelected={feature.id === selectedFeatureId}
+                      onSelect={() => onSelectFeature(feature.id)}
+                      onStatusChange={(status) =>
+                        onUpdateFeature(feature.id, { status })
+                      }
+                      onDuplicate={() => onDuplicateFeature(feature.id)}
+                      onDelete={() => onDeleteFeature(feature.id)}
+                      onInject={() => onInjectPrompt(feature.id)}
+                      isCompact={isCompact}
+                    />
+                  ))}
+
+                  {/* Completed Section Divider */}
+                  {completedTasks.length > 0 && (
+                    <>
+                      <div className="border-t border-dashed border-muted-foreground/30 my-4" />
+                      <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-2">
+                        Completed
+                      </h3>
+                    </>
+                  )}
+
+                  {/* Completed Tasks (Done) */}
+                  {completedTasks.map((feature, index) => (
+                    <FeatureItem
+                      key={feature.id}
+                      feature={feature}
+                      index={activeTasks.length + index}
+                      isSelected={feature.id === selectedFeatureId}
+                      isCompleted
                       onSelect={() => onSelectFeature(feature.id)}
                       onStatusChange={(status) =>
                         onUpdateFeature(feature.id, { status })
