@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "LavaLog",
-  "short_name": "LavaLog",
+  "name": "LovaLog",
+  "short_name": "LovaLog",
   "description": "Lovable Backlog Manager - Manage your Lovable project features and prompts",
   "version": "1.0.0",
   "icons": {

@@ -59,25 +59,25 @@ export function FeatureItem({
             <GripVertical className="w-4 h-4" />
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex items-center justify-between">
+            <div className="flex-1 min-w-0 text-left">
               <span className={cn(
-                "font-medium truncate text-foreground",
+                "font-medium truncate block text-foreground",
                 isCompleted && "line-through"
               )}>
                 {feature.title}
               </span>
-              <StatusBadge status={feature.status} onClick={handleStatusClick} />
+              {!isCompact && feature.prompt && (
+                <p className={cn(
+                  "text-sm text-muted-foreground truncate mt-1",
+                  isCompleted && "line-through"
+                )}>
+                  {feature.prompt.slice(0, 80)}
+                  {feature.prompt.length > 80 ? '...' : ''}
+                </p>
+              )}
             </div>
-            {!isCompact && feature.prompt && (
-              <p className={cn(
-                "text-sm text-muted-foreground truncate mt-1",
-                isCompleted && "line-through"
-              )}>
-                {feature.prompt.slice(0, 60)}
-                {feature.prompt.length > 60 ? '...' : ''}
-              </p>
-            )}
+            <StatusBadge status={feature.status} onClick={handleStatusClick} className="shrink-0 ml-3" />
           </div>
 
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
