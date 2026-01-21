@@ -103,7 +103,7 @@ Example:
           {hasChanges ? (
             <span className="text-amber-500">Unsaved changes</span>
           ) : (
-            <span>Last updated: {new Date(feature.updatedAt).toLocaleString()}</span>
+            <span>Last updated: {new Date(feature.updated_at).toLocaleString()}</span>
           )}
         </div>
 
@@ -116,7 +116,7 @@ Example:
           )}
           <Button
             size="sm"
-            className="bg-heartbeat hover:bg-heartbeat/90 text-white"
+            className="bg-lavalog hover:bg-lavalog/90 text-white"
             onClick={() => {
               if (hasChanges) handleSave();
               onInject();

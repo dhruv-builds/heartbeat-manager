@@ -190,8 +190,8 @@ export default function Dashboard() {
             features={activeProject.features}
             selectedFeatureId={selectedFeatureId}
             onSelectFeature={handleSelectFeature}
-            onCreateFeature={(title) => {
-              const feature = createFeature(activeProject.id, title);
+            onCreateFeature={async (title) => {
+              const feature = await createFeature(activeProject.id, title);
               if (feature) {
                 setSelectedFeatureId(feature.id);
                 setIsDetailSheetOpen(true);
@@ -207,8 +207,8 @@ export default function Dashboard() {
                 setIsDetailSheetOpen(false);
               }
             }}
-            onDuplicateFeature={(featureId) => {
-              const newFeature = duplicateFeature(activeProject.id, featureId);
+            onDuplicateFeature={async (featureId) => {
+              const newFeature = await duplicateFeature(activeProject.id, featureId);
               if (newFeature) {
                 setSelectedFeatureId(newFeature.id);
                 setIsDetailSheetOpen(true);
