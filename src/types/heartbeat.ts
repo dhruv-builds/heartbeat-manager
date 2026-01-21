@@ -2,20 +2,22 @@ export type FeatureStatus = 'backlog' | 'in-progress' | 'done';
 
 export interface Feature {
   id: string;
+  project_id?: string;
   title: string;
   status: FeatureStatus;
   prompt: string;
   order: number;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Project {
   id: string;
+  user_id?: string;
   name: string;
   features: Feature[];
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface HeartbeatData {
@@ -27,3 +29,23 @@ export const DEFAULT_DATA: HeartbeatData = {
   projects: [],
   activeProjectId: null,
 };
+
+// Database row types (what comes from Supabase)
+export interface DbProject {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbFeature {
+  id: string;
+  project_id: string;
+  title: string;
+  status: FeatureStatus;
+  prompt: string;
+  order: number;
+  created_at: string;
+  updated_at: string;
+}

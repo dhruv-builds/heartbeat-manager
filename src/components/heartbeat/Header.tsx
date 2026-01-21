@@ -1,13 +1,15 @@
-import { Download, Upload, Plus, MoreVertical, RefreshCw } from 'lucide-react';
+import { Download, Upload, Plus, MoreVertical, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface HeaderProps {
   onExport: () => void;
@@ -19,6 +21,7 @@ interface HeaderProps {
 
 export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { signOut, user } = useAuth();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -38,6 +41,10 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
     if (onSync) {
       await onSync();
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
   };
 
   return (
@@ -78,7 +85,7 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
           <Plus className="w-4 h-4" />
         </Button>
 
-        {/* Import/Export Menu */}
+        {/* Import/Export/Logout Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -94,6 +101,15 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
               <Upload className="w-4 h-4 mr-2" />
               Import Data
             </DropdownMenuItem>
+            {user && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 

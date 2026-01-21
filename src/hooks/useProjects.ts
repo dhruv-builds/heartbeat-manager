@@ -1,214 +1,395 @@
 import { useState, useEffect, useCallback } from 'react';
-import { HeartbeatData, Project, Feature, FeatureStatus, DEFAULT_DATA } from '@/types/heartbeat';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { Project, Feature, FeatureStatus } from '@/types/heartbeat';
 
-const STORAGE_KEY = 'heartbeat-data';
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function loadData(): HeartbeatData {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {
-    console.error('Failed to load Heartbeat data:', e);
-  }
-  return DEFAULT_DATA;
-}
-
-function saveData(data: HeartbeatData): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error('Failed to save Heartbeat data:', e);
-  }
-}
+// Use 'any' for Supabase queries since we're connecting to an external Supabase
+// whose types aren't in the auto-generated types file
 
 export function useProjects() {
-  const [data, setData] = useState<HeartbeatData>(loadData);
+  const { user } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const activeProject = projects.find(p => p.id === activeProjectId) || null;
+
+  // Fetch projects and features from Supabase
+  const fetchProjects = useCallback(async () => {
+    if (!user) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Fetch projects
+      const { data: projectsData, error: projectsError } = await (supabase as any)
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (projectsError) throw projectsError;
+
+      // Fetch all features for user's projects
+      const projectIds = projectsData?.map((p: any) => p.id) || [];
+      let featuresData: any[] = [];
+
+      if (projectIds.length > 0) {
+        const { data, error: featuresError } = await (supabase as any)
+          .from('features')
+          .select('*')
+          .in('project_id', projectIds)
+          .order('order', { ascending: true });
+
+        if (featuresError) throw featuresError;
+        featuresData = data || [];
+      }
+
+      // Combine projects with their features
+      const projectsWithFeatures: Project[] = (projectsData || []).map((p: any) => ({
+        id: p.id,
+        user_id: p.user_id,
+        name: p.name,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        features: featuresData
+          .filter((f: any) => f.project_id === p.id)
+          .map((f: any) => ({
+            id: f.id,
+            project_id: f.project_id,
+            title: f.title,
+            status: f.status as FeatureStatus,
+            prompt: f.prompt,
+            order: f.order,
+            created_at: f.created_at,
+            updated_at: f.updated_at,
+          })),
+      }));
+
+      setProjects(projectsWithFeatures);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    saveData(data);
-  }, [data]);
-
-  const activeProject = data.projects.find(p => p.id === data.activeProjectId) || null;
+    fetchProjects();
+  }, [fetchProjects]);
 
   const setActiveProject = useCallback((projectId: string | null) => {
-    setData(prev => ({ ...prev, activeProjectId: projectId }));
+    setActiveProjectId(projectId);
   }, []);
 
-  const createProject = useCallback((name: string): Project => {
-    const now = new Date().toISOString();
-    const newProject: Project = {
-      id: generateId(),
-      name,
-      features: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    setData(prev => ({
-      ...prev,
-      projects: [...prev.projects, newProject],
-      activeProjectId: newProject.id,
-    }));
-    return newProject;
+  const createProject = useCallback(async (name: string): Promise<Project | null> => {
+    if (!user) return null;
+
+    try {
+      const { data, error } = await (supabase as any)
+        .from('projects')
+        .insert({ name, user_id: user.id })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const newProject: Project = {
+        id: data.id,
+        user_id: data.user_id,
+        name: data.name,
+        features: [],
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      setProjects(prev => [...prev, newProject]);
+      setActiveProjectId(newProject.id);
+      return newProject;
+    } catch (error) {
+      console.error('Error creating project:', error);
+      return null;
+    }
+  }, [user]);
+
+  const updateProject = useCallback(async (projectId: string, updates: Partial<Pick<Project, 'name'>>) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, ...updates, updated_at: new Date().toISOString() }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error('Error updating project:', error);
+    }
   }, []);
 
-  const updateProject = useCallback((projectId: string, updates: Partial<Pick<Project, 'name'>>) => {
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
-        p.id === projectId
-          ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-          : p
-      ),
-    }));
-  }, []);
+  const deleteProject = useCallback(async (projectId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
 
-  const deleteProject = useCallback((projectId: string) => {
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.filter(p => p.id !== projectId),
-      activeProjectId: prev.activeProjectId === projectId ? null : prev.activeProjectId,
-    }));
-  }, []);
+      if (error) throw error;
 
-  const createFeature = useCallback((projectId: string, title: string): Feature | null => {
-    const now = new Date().toISOString();
-    const project = data.projects.find(p => p.id === projectId);
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      if (activeProjectId === projectId) {
+        setActiveProjectId(null);
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+    }
+  }, [activeProjectId]);
+
+  const createFeature = useCallback(async (projectId: string, title: string): Promise<Feature | null> => {
+    const project = projects.find(p => p.id === projectId);
     if (!project) return null;
 
-    const newFeature: Feature = {
-      id: generateId(),
-      title,
-      status: 'backlog',
-      prompt: '',
-      order: project.features.length,
-      createdAt: now,
-      updatedAt: now,
-    };
+    try {
+      const { data, error } = await (supabase as any)
+        .from('features')
+        .insert({
+          project_id: projectId,
+          title,
+          status: 'backlog',
+          prompt: '',
+          order: project.features.length,
+        })
+        .select()
+        .single();
 
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
-        p.id === projectId
-          ? { ...p, features: [...p.features, newFeature], updatedAt: now }
-          : p
-      ),
-    }));
+      if (error) throw error;
+      if (!data) return null;
 
-    return newFeature;
-  }, [data.projects]);
+      const newFeature: Feature = {
+        id: data.id,
+        project_id: data.project_id,
+        title: data.title,
+        status: data.status as FeatureStatus,
+        prompt: data.prompt,
+        order: data.order,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
 
-  const updateFeature = useCallback((
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, features: [...p.features, newFeature], updated_at: new Date().toISOString() }
+            : p
+        )
+      );
+
+      return newFeature;
+    } catch (error) {
+      console.error('Error creating feature:', error);
+      return null;
+    }
+  }, [projects]);
+
+  const updateFeature = useCallback(async (
     projectId: string,
     featureId: string,
     updates: Partial<Pick<Feature, 'title' | 'status' | 'prompt'>>
   ) => {
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
-        p.id === projectId
-          ? {
-              ...p,
-              features: p.features.map(f =>
-                f.id === featureId
-                  ? { ...f, ...updates, updatedAt: new Date().toISOString() }
-                  : f
-              ),
-              updatedAt: new Date().toISOString(),
-            }
-          : p
-      ),
-    }));
+    try {
+      const { error } = await (supabase as any)
+        .from('features')
+        .update(updates)
+        .eq('id', featureId);
+
+      if (error) throw error;
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? {
+                ...p,
+                features: p.features.map(f =>
+                  f.id === featureId
+                    ? { ...f, ...updates, updated_at: new Date().toISOString() }
+                    : f
+                ),
+                updated_at: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error('Error updating feature:', error);
+    }
   }, []);
 
-  const deleteFeature = useCallback((projectId: string, featureId: string) => {
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
-        p.id === projectId
-          ? {
-              ...p,
-              features: p.features.filter(f => f.id !== featureId),
-              updatedAt: new Date().toISOString(),
-            }
-          : p
-      ),
-    }));
+  const deleteFeature = useCallback(async (projectId: string, featureId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('features')
+        .delete()
+        .eq('id', featureId);
+
+      if (error) throw error;
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? {
+                ...p,
+                features: p.features.filter(f => f.id !== featureId),
+                updated_at: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error('Error deleting feature:', error);
+    }
   }, []);
 
-  const reorderFeatures = useCallback((projectId: string, features: Feature[]) => {
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
+  const reorderFeatures = useCallback(async (projectId: string, features: Feature[]) => {
+    // Optimistic update
+    setProjects(prev =>
+      prev.map(p =>
         p.id === projectId
           ? {
               ...p,
               features: features.map((f, idx) => ({ ...f, order: idx })),
-              updatedAt: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             }
           : p
-      ),
-    }));
-  }, []);
+      )
+    );
 
-  const duplicateFeature = useCallback((projectId: string, featureId: string): Feature | null => {
-    const project = data.projects.find(p => p.id === projectId);
+    // Update in database
+    try {
+      for (let i = 0; i < features.length; i++) {
+        await (supabase as any)
+          .from('features')
+          .update({ order: i })
+          .eq('id', features[i].id);
+      }
+    } catch (error) {
+      console.error('Error reordering features:', error);
+      // Refetch on error
+      fetchProjects();
+    }
+  }, [fetchProjects]);
+
+  const duplicateFeature = useCallback(async (projectId: string, featureId: string): Promise<Feature | null> => {
+    const project = projects.find(p => p.id === projectId);
     const feature = project?.features.find(f => f.id === featureId);
-    if (!feature) return null;
+    if (!feature || !project) return null;
 
-    const now = new Date().toISOString();
-    const newFeature: Feature = {
-      ...feature,
-      id: generateId(),
-      title: `${feature.title} (copy)`,
-      order: project!.features.length,
-      createdAt: now,
-      updatedAt: now,
-    };
+    try {
+      const { data, error } = await (supabase as any)
+        .from('features')
+        .insert({
+          project_id: projectId,
+          title: `${feature.title} (copy)`,
+          status: feature.status,
+          prompt: feature.prompt,
+          order: project.features.length,
+        })
+        .select()
+        .single();
 
-    setData(prev => ({
-      ...prev,
-      projects: prev.projects.map(p =>
-        p.id === projectId
-          ? { ...p, features: [...p.features, newFeature], updatedAt: now }
-          : p
-      ),
-    }));
+      if (error) throw error;
+      if (!data) return null;
 
-    return newFeature;
-  }, [data.projects]);
+      const newFeature: Feature = {
+        id: data.id,
+        project_id: data.project_id,
+        title: data.title,
+        status: data.status as FeatureStatus,
+        prompt: data.prompt,
+        order: data.order,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, features: [...p.features, newFeature], updated_at: new Date().toISOString() }
+            : p
+        )
+      );
+
+      return newFeature;
+    } catch (error) {
+      console.error('Error duplicating feature:', error);
+      return null;
+    }
+  }, [projects]);
 
   const exportData = useCallback((): string => {
-    return JSON.stringify(data, null, 2);
-  }, [data]);
+    return JSON.stringify({ projects, activeProjectId }, null, 2);
+  }, [projects, activeProjectId]);
 
-  const importData = useCallback((jsonString: string): boolean => {
+  const importData = useCallback(async (jsonString: string): Promise<boolean> => {
+    if (!user) return false;
+
     try {
-      const imported = JSON.parse(jsonString) as HeartbeatData;
+      const imported = JSON.parse(jsonString);
       if (!imported.projects || !Array.isArray(imported.projects)) {
         throw new Error('Invalid data format');
       }
-      setData(imported);
+
+      // Import each project and its features
+      for (const project of imported.projects) {
+        const { data: newProject, error: projectError } = await (supabase as any)
+          .from('projects')
+          .insert({ name: project.name, user_id: user.id })
+          .select()
+          .single();
+
+        if (projectError) throw projectError;
+        if (!newProject) continue;
+
+        if (project.features && project.features.length > 0) {
+          const features = project.features.map((f: any, idx: number) => ({
+            project_id: newProject.id,
+            title: f.title,
+            status: f.status || 'backlog',
+            prompt: f.prompt || '',
+            order: idx,
+          }));
+
+          const { error: featuresError } = await (supabase as any)
+            .from('features')
+            .insert(features);
+
+          if (featuresError) throw featuresError;
+        }
+      }
+
+      await fetchProjects();
       return true;
     } catch (e) {
       console.error('Failed to import data:', e);
       return false;
     }
-  }, []);
+  }, [user, fetchProjects]);
 
   const findProjectByName = useCallback((name: string): Project | null => {
-    return data.projects.find(p => p.name.toLowerCase() === name.toLowerCase()) || null;
-  }, [data.projects]);
+    return projects.find(p => p.name.toLowerCase() === name.toLowerCase()) || null;
+  }, [projects]);
 
   return {
-    data,
-    projects: data.projects,
+    projects,
     activeProject,
+    loading,
     setActiveProject,
     createProject,
     updateProject,
@@ -221,5 +402,6 @@ export function useProjects() {
     exportData,
     importData,
     findProjectByName,
+    refetch: fetchProjects,
   };
 }
