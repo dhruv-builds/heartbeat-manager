@@ -15,7 +15,7 @@ const statusConfig: Record<FeatureStatus, { label: string; className: string }> 
   },
   'in-progress': {
     label: 'In Progress',
-    className: 'bg-heartbeat/20 text-heartbeat hover:bg-heartbeat/30',
+    className: 'bg-lavalog/20 text-lavalog hover:bg-lavalog/30',
   },
   'done': {
     label: 'Done',

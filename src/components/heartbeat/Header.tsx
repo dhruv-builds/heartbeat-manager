@@ -45,11 +45,11 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
       <div className="flex items-center gap-2">
         <img 
           src="./app-logo.png" 
-          alt="LavaLog" 
+          alt="LovaLog" 
           className="w-6 h-6 object-contain"
         />
         <div>
-          <h1 className="text-base font-bold text-foreground">LavaLog</h1>
+          <h1 className="text-base font-bold text-foreground">LovaLog</h1>
           <p className="text-[10px] text-muted-foreground -mt-0.5">Lovable Backlog Manager</p>
         </div>
       </div>
