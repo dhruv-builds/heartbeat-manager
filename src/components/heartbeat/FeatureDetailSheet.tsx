@@ -105,8 +105,8 @@ export function FeatureDetailSheet({
       return;
     }
 
-    // Scrape page content
-    const pageContent = await scrapePageContent();
+    // Scrape page content with fallback
+    const pageContent = (await scrapePageContent()) || "No page content available.";
     
     // Get completed features for context
     const doneFeatures = existingFeatures

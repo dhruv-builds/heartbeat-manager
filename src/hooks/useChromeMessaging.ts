@@ -26,6 +26,12 @@ declare const chrome: {
       content?: string | null;
     }>;
   };
+  scripting?: {
+    executeScript: (options: {
+      target: { tabId: number };
+      func: () => string;
+    }) => Promise<Array<{ result: string }>>;
+  };
 };
 
 // Check if we're running as a Chrome extension
@@ -123,23 +129,19 @@ export function useChromeMessaging() {
     }
 
     try {
-      const tabs = await chrome.tabs!.query({ active: true, currentWindow: true });
-      const tab = tabs[0];
-      if (!tab?.id) return null;
+      const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+      if (!tab?.id) return "";
 
-      const response = await chrome.tabs!.sendMessage(tab.id, { 
-        type: 'SCRAPE_PAGE_CONTENT' 
+      const results = await chrome.scripting!.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.body.innerText,
       });
-      
-      if (response?.success) {
-        return response.content || null;
-      }
-      
-      console.error('Failed to scrape page:', response?.error);
-      return null;
-    } catch (e) {
-      console.error('Failed to scrape page content:', e);
-      return null;
+
+      // Return the .result property from the first frame
+      return results?.[0]?.result || "";
+    } catch (error) {
+      console.error("Scraping failed:", error);
+      return "";
     }
   }, [isExtension]);
 
