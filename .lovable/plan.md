@@ -1,91 +1,64 @@
 
 
-## Fix 'Generate with AI' Scraping - Bug Fix Plan
+## Fix: Simplify useGeneratePrompt for Non-Streaming Response
 
-### Problem Identified
-The `scrapePageContent` function in `src/hooks/useChromeMessaging.ts` is failing to extract page text properly, resulting in empty content being sent to the Supabase Edge Function, causing 400 errors.
+### Problem
+The user reports that their deployed Edge Function returns a standard JSON response (with `stream: false`), but the frontend hook is trying to parse it as an SSE stream. This mismatch causes the textarea to remain empty despite the "Prompt generated!" toast appearing.
 
-### Root Cause
-The current implementation uses message passing via `chrome.tabs.sendMessage` to communicate with the content script. The user has identified that using `chrome.scripting.executeScript` is more reliable for this use case.
+### Solution
+Simplify `src/hooks/useGeneratePrompt.ts` to handle a non-streaming JSON response instead of SSE parsing.
 
 ---
 
-### Fix 1: Update `src/hooks/useChromeMessaging.ts`
+### File to Modify
 
-**Change:** Replace the message-passing approach with direct script injection using `chrome.scripting.executeScript`.
+**`src/hooks/useGeneratePrompt.ts`**
 
-**Technical Details:**
-- Add `chrome.scripting` to the TypeScript declarations
-- Modify `scrapePageContent` to use `executeScript` instead of `sendMessage`
-- Properly access the `.result` property from the first frame result: `results?.[0]?.result`
-- Return empty string on failure instead of `null` for safer handling
+#### Current Logic (Complex Streaming)
+- Uses `response.body.getReader()` to read chunks
+- Parses SSE `data: {...}` lines
+- Extracts `choices[0].delta.content` from each chunk
+- Calls `onDelta()` for each token incrementally
+
+#### New Logic (Simple JSON)
+- Uses `response.json()` to get the full response
+- Extracts `choices[0].message.content` from the JSON
+- Calls `onDelta()` once with the complete text
+- Calls `onDone()` after success
+
+---
+
+### Technical Implementation
+
+Replace lines 59-123 with simplified logic:
 
 ```typescript
-// Add to chrome type declaration:
-scripting?: {
-  executeScript: (options: {
-    target: { tabId: number };
-    func: () => string;
-  }) => Promise<Array<{ result: string }>>;
-};
+const data = await response.json();
 
-// Updated scrapePageContent function:
-const scrapePageContent = useCallback(async (): Promise<string | null> => {
-  if (!isExtension) {
-    return "Development mode - mock page content...";
-  }
+// Perplexity non-streaming format: choices[0].message.content
+const generatedText = data.choices?.[0]?.message?.content;
 
-  try {
-    const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
-    if (!tab?.id) return "";
+if (!generatedText) {
+  onError("No content received from AI");
+  return;
+}
 
-    const results = await chrome.scripting!.executeScript({
-      target: { tabId: tab.id },
-      func: () => document.body.innerText,
-    });
-
-    // Return the .result property from the first frame
-    return results?.[0]?.result || "";
-  } catch (error) {
-    console.error("Scraping failed:", error);
-    return "";
-  }
-}, [isExtension]);
+// Call onDelta once with the full generated text
+onDelta(generatedText);
+onDone();
 ```
 
----
+### Key Changes Summary
 
-### Fix 2: Update `src/components/heartbeat/FeatureDetailSheet.tsx`
-
-**Change:** Add a fallback in `handleGeneratePrompt` to ensure non-empty content is sent to the AI.
-
-**Technical Details:**
-- Use nullish coalescing with a fallback message when scraping returns empty/null
-
-```typescript
-// In handleGeneratePrompt function, line 109:
-const pageContent = (await scrapePageContent()) || "No page content available.";
-```
-
----
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/hooks/useChromeMessaging.ts` | Refactor `scrapePageContent` to use `chrome.scripting.executeScript` with proper result extraction |
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add fallback for empty page content |
-
----
-
-### Why This Fix Works
-
-1. **Direct Script Execution**: `chrome.scripting.executeScript` directly runs JavaScript in the target tab's context, bypassing potential content script messaging issues
-2. **Proper Result Access**: The `executeScript` API returns an array of injection results; each result has a `.result` property containing the return value from the injected function
-3. **Fallback Protection**: Even if scraping fails completely, the AI will receive a placeholder message instead of `null` or empty string, preventing 400 errors
+| Aspect | Before (Streaming) | After (Non-Streaming) |
+|--------|-------------------|----------------------|
+| Response parsing | `getReader()` + chunk loop | `response.json()` |
+| Content path | `choices[0].delta.content` | `choices[0].message.content` |
+| onDelta calls | Many (per token) | Once (full text) |
+| Code complexity | ~70 lines | ~15 lines |
 
 ### Notes
-- The `scripting` permission is already present in `manifest.json` (line 16)
-- The content script handler `SCRAPE_PAGE_CONTENT` in `public/content.js` can remain as a fallback but won't be used by this new approach
-- Return type changes from `string | null` to always returning a string (empty string on failure)
+- The `onDelta` callback pattern is preserved so the UI code in `FeatureDetailSheet.tsx` doesn't need changes
+- The `onDone` callback still fires after completion to trigger the success toast
+- Error handling for 402/429 remains unchanged
 
