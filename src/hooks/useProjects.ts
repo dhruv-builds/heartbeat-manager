@@ -62,6 +62,7 @@ export function useProjects() {
             status: f.status as FeatureStatus,
             prompt: f.prompt,
             order: f.order,
+            image_url: f.image_url,
             created_at: f.created_at,
             updated_at: f.updated_at,
           })),
@@ -180,6 +181,7 @@ export function useProjects() {
         status: data.status as FeatureStatus,
         prompt: data.prompt,
         order: data.order,
+        image_url: data.image_url,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
@@ -202,7 +204,7 @@ export function useProjects() {
   const updateFeature = useCallback(async (
     projectId: string,
     featureId: string,
-    updates: Partial<Pick<Feature, 'title' | 'status' | 'prompt'>>
+    updates: Partial<Pick<Feature, 'title' | 'status' | 'prompt' | 'image_url'>>
   ) => {
     try {
       const { error } = await (supabase as any)
@@ -299,6 +301,7 @@ export function useProjects() {
           title: `${feature.title} (copy)`,
           status: feature.status,
           prompt: feature.prompt,
+          image_url: feature.image_url,
           order: project.features.length,
         })
         .select()
@@ -314,6 +317,7 @@ export function useProjects() {
         status: data.status as FeatureStatus,
         prompt: data.prompt,
         order: data.order,
+        image_url: data.image_url,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
