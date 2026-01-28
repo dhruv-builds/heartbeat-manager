@@ -1,257 +1,181 @@
 
 
-## Add Image Attachment Support with Multimodal AI (stream: false)
+## UX Improvements: Status Rename, Project Sync Fix, and Feature Layout Redesign
 
 ### Overview
-Implement image attachment functionality for the "Generate with AI" feature. Users can attach images via file picker or clipboard paste. The image is sent as Base64 to the Perplexity `sonar-pro` model which supports vision input. The Edge Function uses `stream: false` for simple JSON responses.
+Three improvements to finalize the app UX:
+1. Rename "In Progress" status to "Next"
+2. Fix race condition causing duplicate project creation prompts
+3. Redesign feature row to a 2-row layout for better readability
 
 ---
 
-### Phase 1: FeatureDetailSheet Component
+### Change 1: Rename "In Progress" to "Next"
 
-**File: `src/components/heartbeat/FeatureDetailSheet.tsx`**
+**File: `src/components/heartbeat/StatusBadge.tsx`**
 
-#### New State & Refs
+Update the label in the `statusConfig` object:
+
 ```typescript
-const [attachedImage, setAttachedImage] = useState<string | null>(null);
-const fileInputRef = useRef<HTMLInputElement>(null);
+'in-progress': {
+  label: 'Next',  // Changed from 'In Progress'
+  className: 'bg-lavalog/20 text-lavalog hover:bg-lavalog/30',
+},
 ```
 
-#### New Imports
+- Keep the same `'in-progress'` key (no database changes)
+- Keep the pink color styling
+- Only the display label changes
+
+---
+
+### Change 2: Fix Duplicate Project Creation
+
+**Problem**: The Dashboard's `useEffect` that auto-detects projects runs before `projects` are loaded from Supabase. When `pageInfo` arrives but `projects` is still empty, `findProjectByName` returns `null`, triggering the "Create new project" dialog even when the project exists.
+
+**File: `src/pages/Dashboard.tsx`**
+
+**Solution**: Add a dependency on the `loading` state and only run auto-detection after projects have been fetched.
+
+1. Import `loading` from `useProjects()`:
 ```typescript
-import { Zap, Sparkles, Loader2, Paperclip, X } from 'lucide-react';
+const {
+  projects,
+  activeProject,
+  loading,  // <-- Add this
+  setActiveProject,
+  // ...
+} = useProjects();
 ```
 
-#### UI Changes
-
-**1. Attach Button (next to Generate with AI)**
-```tsx
-<div className="flex items-center gap-1">
-  <Button
-    variant="ghost"
-    size="sm"
-    onClick={() => fileInputRef.current?.click()}
-    className="text-muted-foreground hover:text-foreground h-7 px-2"
-    title="Attach image"
-  >
-    <Paperclip className="w-4 h-4" />
-  </Button>
-  {/* Existing Generate with AI button */}
-</div>
-<input
-  ref={fileInputRef}
-  type="file"
-  accept="image/*"
-  className="hidden"
-  onChange={handleFileSelect}
-/>
-```
-
-**2. Image Preview (below textarea, above auto-save text)**
-```tsx
-{attachedImage && (
-  <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-    <img 
-      src={attachedImage} 
-      alt="Attached" 
-      className="w-[100px] h-[100px] object-cover rounded"
-    />
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setAttachedImage(null)}
-      className="h-6 w-6"
-    >
-      <X className="w-4 h-4" />
-    </Button>
-  </div>
-)}
-```
-
-**3. Paste Handler (on SheetContent)**
-```tsx
-<SheetContent onPaste={handlePaste}>
-```
-
-#### Event Handlers
-
-**File Select Handler**
-```typescript
-const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = () => {
-    setAttachedImage(reader.result as string);
-  };
-  reader.readAsDataURL(file);
-  e.target.value = ''; // Reset for re-selection
-};
-```
-
-**Paste Handler**
-```typescript
-const handlePaste = (e: React.ClipboardEvent) => {
-  const items = e.clipboardData.items;
-  for (const item of Array.from(items)) {
-    if (item.type.startsWith('image/')) {
-      const file = item.getAsFile();
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          setAttachedImage(reader.result as string);
-          toast({ title: 'Image attached from clipboard' });
-        };
-        reader.readAsDataURL(file);
-      }
-      break;
-    }
-  }
-};
-```
-
-**Update handleGeneratePrompt**
-```typescript
-await generatePrompt({
-  pageContent,
-  featureTitle: localTitle,
-  existingFeatures: doneFeatures,
-  attachedImage,  // <-- Pass attached image
-  onDelta: ...,
-  onDone: ...,
-  onError: ...,
-});
-```
-
-**Clear on Feature Change**
+2. Update the auto-detect useEffect to wait for loading:
 ```typescript
 useEffect(() => {
-  if (feature) {
-    setLocalTitle(feature.title);
-    setLocalPrompt(feature.prompt);
-    setAttachedImage(null); // Clear when switching features
-  }
-}, [feature?.id, feature?.title, feature?.prompt]);
-```
-
----
-
-### Phase 2: useGeneratePrompt Hook
-
-**File: `src/hooks/useGeneratePrompt.ts`**
-
-#### Update Interface
-```typescript
-interface GeneratePromptOptions {
-  pageContent: string | null;
-  featureTitle: string;
-  existingFeatures: string[];
-  attachedImage?: string | null;  // <-- Add this
-  onDelta: (chunk: string) => void;
-  onDone: () => void;
-  onError: (error: string) => void;
-}
-```
-
-#### Update Request Body
-```typescript
-body: JSON.stringify({
-  pageContent,
-  featureTitle,
-  existingFeatures,
-  attachedImage,  // <-- Include in payload
-}),
-```
-
----
-
-### Phase 3: Edge Function (Multimodal + stream: false)
-
-**File: `supabase/functions/generate-feature-prompt/index.ts`**
-
-#### Key Changes
-
-**1. Parse attachedImage**
-```typescript
-const { pageContent, featureTitle, existingFeatures, attachedImage } = await req.json();
-```
-
-**2. Update System Prompt**
-```typescript
-const SYSTEM_PROMPT = `You are an expert Technical Product Manager...
-
-Input Context:
-- Project Context: A raw dump of the current webpage text...
-- Completed Features: A list of features already built...
-- Target Feature: The title of the feature the user wants to build.
-- Visual Reference (Optional): A screenshot or mockup image. Analyze the UI elements, layout, and design patterns shown.
-
-Output Requirements:
-- If an image is provided, reference specific visual elements you observe...
-...`;
-```
-
-**3. Build Multimodal Messages**
-```typescript
-const userMessageContent = [
-  {
-    type: "text",
-    text: userPrompt,
-  },
-  ...(attachedImage ? [{
-    type: "image_url",
-    image_url: {
-      url: attachedImage  // Full data:image/png;base64,... string
+  // Only run after projects are loaded
+  if (loading) return;
+  
+  if (pageInfo?.isLovable && pageInfo.projectName) {
+    const existingProject = findProjectByName(pageInfo.projectName);
+    if (existingProject) {
+      setActiveProject(existingProject.id);
+    } else {
+      setSuggestedProjectName(pageInfo.projectName);
+      setShowNewProjectDialog(true);
     }
-  }] : [])
-];
-
-const messages = [
-  { role: "system", content: SYSTEM_PROMPT },
-  { role: "user", content: userMessageContent },
-];
+  }
+}, [pageInfo, findProjectByName, setActiveProject, loading]);
 ```
 
-**4. API Call with sonar-pro and stream: false**
-```typescript
-const response = await fetch("https://api.perplexity.ai/chat/completions", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: "sonar-pro",        // Vision-capable model
-    messages,
-    stream: false,             // Non-streaming JSON response
-  }),
-});
+3. Similarly update `handleSync` to show a loading state if projects aren't ready yet.
+
+---
+
+### Change 3: Redesign Feature Row Layout
+
+**File: `src/components/heartbeat/FeatureItem.tsx`**
+
+Transform from single-row to 2-row layout:
+
+**Current Layout (Single Row):**
+```
+[Grip] [Title... (truncated)] [Badge] [Actions]
 ```
 
-**5. Return JSON Response**
-```typescript
-const data = await response.json();
-return new Response(JSON.stringify(data), {
-  headers: { ...corsHeaders, "Content-Type": "application/json" },
-});
+**New Layout (Two Rows):**
 ```
+Row 1: [Grip] [Full Title - bold, wraps if long]
+Row 2:        [Prompt preview (gray, truncated)] [Status Badge] [Actions]
+```
+
+#### Implementation Details:
+
+```tsx
+<Draggable draggableId={feature.id} index={index}>
+  {(provided, snapshot) => (
+    <div
+      ref={provided.innerRef}
+      {...provided.draggableProps}
+      className={cn(
+        'group p-3 rounded-lg border transition-all',
+        'hover:border-lavalog/50',
+        isSelected ? 'border-lavalog bg-lavalog/10' : 'border-border bg-card',
+        snapshot.isDragging && 'shadow-lg',
+        isCompleted && 'opacity-60'
+      )}
+      onClick={onSelect}
+    >
+      {/* Row 1: Drag handle + Full Title */}
+      <div className="flex items-start gap-2">
+        <div
+          {...provided.dragHandleProps}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <h3 className={cn(
+          "flex-1 font-semibold text-foreground break-words",
+          isCompleted && "line-through"
+        )}>
+          {feature.title}
+        </h3>
+      </div>
+
+      {/* Row 2: Prompt preview + Badge + Actions */}
+      <div className="flex items-center justify-between mt-2 ml-6">
+        {/* Left: Prompt preview */}
+        <p className={cn(
+          "flex-1 text-sm text-muted-foreground truncate mr-3",
+          isCompleted && "line-through"
+        )}>
+          {feature.prompt?.slice(0, 60) || 'No prompt yet'}
+          {feature.prompt && feature.prompt.length > 60 ? '...' : ''}
+        </p>
+
+        {/* Right: Badge + Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <StatusBadge status={feature.status} onClick={handleStatusClick} />
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button size="icon" variant="ghost" onClick={onInject} title="Inject">
+              <Zap className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={onDuplicate} title="Duplicate">
+              <Copy className="w-3 h-3" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={onDelete} title="Delete">
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</Draggable>
+```
+
+#### Key Layout Changes:
+| Aspect | Before | After |
+|--------|--------|-------|
+| Title display | Truncated, single line | Full width, bold, wraps |
+| Prompt preview | Below title (same row area) | Row 2, left side |
+| Badge position | End of Row 1 | Row 2, right side |
+| Actions | End of Row 1 | Row 2, far right |
+| Row structure | Flex row | Two stacked flex rows |
 
 ---
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add state, refs, file input, paste handler, image preview UI |
-| `src/hooks/useGeneratePrompt.ts` | Add `attachedImage` to interface and request body |
-| `supabase/functions/generate-feature-prompt/index.ts` | Switch to sonar-pro, multimodal messages, stream: false |
+| File | Change |
+|------|--------|
+| `src/components/heartbeat/StatusBadge.tsx` | Rename label from "In Progress" to "Next" |
+| `src/pages/Dashboard.tsx` | Add `loading` dependency to prevent race condition |
+| `src/components/heartbeat/FeatureItem.tsx` | Redesign to 2-row layout |
 
 ---
 
-### Summary of Key Settings
-- **Model**: `sonar-pro` (supports image input)
-- **Streaming**: `stream: false` (returns JSON directly)
-- **Image Format**: Base64 `data:image/png;base64,...` in `image_url.url`
-- **Response**: `data.choices[0].message.content` (non-streaming format)
+### Summary
+
+1. **Status Rename**: Simple label change, no backend impact
+2. **Sync Fix**: Wait for projects to load before auto-detection runs
+3. **Layout Redesign**: Two-row structure ensures full title visibility while keeping all controls accessible
 
