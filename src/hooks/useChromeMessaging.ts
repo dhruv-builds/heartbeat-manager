@@ -17,7 +17,14 @@ declare const chrome: {
   };
   tabs?: {
     query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<Array<{ id?: number }>>;
-    sendMessage: (tabId: number, message: { type: string; text?: string }) => Promise<{ success?: boolean; isLovable?: boolean; projectName?: string | null; url?: string; error?: string }>;
+    sendMessage: (tabId: number, message: { type: string; text?: string }) => Promise<{ 
+      success?: boolean; 
+      isLovable?: boolean; 
+      projectName?: string | null; 
+      url?: string; 
+      error?: string;
+      content?: string | null;
+    }>;
   };
 };
 
@@ -109,10 +116,38 @@ export function useChromeMessaging() {
     checkCurrentPage();
   }, [checkCurrentPage]);
 
+  const scrapePageContent = useCallback(async (): Promise<string | null> => {
+    if (!isExtension) {
+      // Dev mode: return mock content
+      return "Development mode - This is mock page content. In the actual extension, this would contain the full text from the current Lovable project page.";
+    }
+
+    try {
+      const tabs = await chrome.tabs!.query({ active: true, currentWindow: true });
+      const tab = tabs[0];
+      if (!tab?.id) return null;
+
+      const response = await chrome.tabs!.sendMessage(tab.id, { 
+        type: 'SCRAPE_PAGE_CONTENT' 
+      });
+      
+      if (response?.success) {
+        return response.content || null;
+      }
+      
+      console.error('Failed to scrape page:', response?.error);
+      return null;
+    } catch (e) {
+      console.error('Failed to scrape page content:', e);
+      return null;
+    }
+  }, [isExtension]);
+
   return {
     isExtension,
     pageInfo,
     checkCurrentPage,
     injectPrompt,
+    scrapePageContent,
   };
 }

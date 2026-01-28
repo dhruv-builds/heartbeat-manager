@@ -20,7 +20,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleGetCredits(sendResponse);
     return true;
   }
+
+  if (message.type === 'SCRAPE_PAGE_CONTENT') {
+    handleScrapePageContent(sendResponse);
+    return true;
+  }
 });
+
+function handleScrapePageContent(sendResponse) {
+  try {
+    const content = document.body.innerText || '';
+    sendResponse({
+      success: true,
+      content: content.slice(0, 50000) // Limit to 50k chars
+    });
+  } catch (error) {
+    console.error('[LavaLog] Scrape error:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      content: null 
+    });
+  }
+}
 
 function handleCheckCurrentPage(sendResponse) {
   const hostname = window.location.hostname;
