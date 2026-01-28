@@ -7,6 +7,7 @@ export interface Feature {
   status: FeatureStatus;
   prompt: string;
   order: number;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,7 @@ export interface DbFeature {
   status: FeatureStatus;
   prompt: string;
   order: number;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -6,6 +6,7 @@ import { Feature } from '@/types/heartbeat';
 import { StatusBadge, getNextStatus } from './StatusBadge';
 import { useGeneratePrompt } from '@/hooks/useGeneratePrompt';
 import { useChromeMessaging } from '@/hooks/useChromeMessaging';
+import { useImageUpload } from '@/hooks/useImageUpload';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
@@ -45,18 +46,19 @@ export function FeatureDetailSheet({
   
   const { generatePrompt, isGenerating } = useGeneratePrompt();
   const { scrapePageContent, copyImageToClipboard } = useChromeMessaging();
+  const { uploadImage, deleteImage, uploading } = useImageUpload();
   const { toast } = useToast();
 
-  // Sync local state when feature changes
+  // Sync local state when feature changes - load image_url from DB
   useEffect(() => {
     if (feature) {
       setLocalTitle(feature.title);
       setLocalPrompt(feature.prompt);
-      setAttachedImage(null);
+      setAttachedImage(feature.image_url || null);
     }
-  }, [feature?.id, feature?.title, feature?.prompt]);
+  }, [feature?.id, feature?.title, feature?.prompt, feature?.image_url]);
 
-  // Auto-save with debounce
+  // Auto-save with debounce (only for title and prompt, not image)
   useEffect(() => {
     if (!feature) return;
     
@@ -130,34 +132,72 @@ export function FeatureDetailSheet({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !feature) return;
     
     const reader = new FileReader();
-    reader.onload = () => {
-      setAttachedImage(reader.result as string);
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      // Show preview immediately
+      setAttachedImage(base64);
+      
+      // Upload to storage and save URL to DB
+      const url = await uploadImage(base64, feature.id);
+      if (url) {
+        setAttachedImage(url);
+        onUpdate({ image_url: url });
+        toast({ title: 'Image saved' });
+      } else {
+        toast({ title: 'Upload failed', variant: 'destructive' });
+        setAttachedImage(null);
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
     for (const item of Array.from(items)) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) {
+        if (file && feature) {
           const reader = new FileReader();
-          reader.onload = () => {
-            setAttachedImage(reader.result as string);
-            toast({ title: 'Image attached from clipboard' });
+          reader.onload = async () => {
+            const base64 = reader.result as string;
+            // Show preview immediately
+            setAttachedImage(base64);
+            
+            // Upload to storage and save URL to DB
+            const url = await uploadImage(base64, feature.id);
+            if (url) {
+              setAttachedImage(url);
+              onUpdate({ image_url: url });
+              toast({ title: 'Image saved from clipboard' });
+            } else {
+              toast({ title: 'Upload failed', variant: 'destructive' });
+              setAttachedImage(null);
+            }
           };
           reader.readAsDataURL(file);
         }
         break;
       }
     }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!attachedImage || !feature) return;
+    
+    // Delete from storage if it's a URL (not base64)
+    if (attachedImage.startsWith('http')) {
+      await deleteImage(attachedImage);
+    }
+    
+    // Clear local state and nullify DB column
+    setAttachedImage(null);
+    onUpdate({ image_url: null });
   };
 
   const handleGeneratePrompt = async () => {
@@ -242,10 +282,15 @@ export function FeatureDetailSheet({
                       variant="ghost"
                       size="sm"
                       onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
                       className="text-muted-foreground hover:text-foreground h-7 px-2"
                       title="Attach image"
                     >
-                      <Paperclip className="w-4 h-4" />
+                      {uploading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Paperclip className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button
                       variant="ghost"
@@ -304,11 +349,15 @@ Example:
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setAttachedImage(null)}
+                    onClick={handleRemoveImage}
                     className="h-6 w-6"
+                    title="Remove image"
                   >
                     <X className="w-4 h-4" />
                   </Button>
+                  {uploading && (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
                 </div>
               )}
 
