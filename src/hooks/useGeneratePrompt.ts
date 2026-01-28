@@ -56,71 +56,18 @@ export function useGeneratePrompt() {
         return;
       }
 
-      if (!response.body) {
-        onError("No response body received");
+      const data = await response.json();
+
+      // Perplexity non-streaming format: choices[0].message.content
+      const generatedText = data.choices?.[0]?.message?.content;
+
+      if (!generatedText) {
+        onError("No content received from AI");
         return;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        textBuffer += decoder.decode(value, { stream: true });
-
-        // Process line-by-line as data arrives
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1); // handle CRLF
-          if (line.startsWith(":") || line.trim() === "") continue; // SSE comments/keepalive
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") {
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            // Perplexity uses same format as OpenAI: choices[0].delta.content
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (typeof content === 'string' && content) {
-              onDelta(content);
-            }
-          } catch (parseError) {
-            // Log parse errors for debugging
-            console.warn("SSE parse error:", parseError, "Line:", jsonStr.slice(0, 100));
-            // Skip malformed lines instead of breaking
-            continue;
-          }
-        }
-      }
-
-      // Final flush in case remaining buffered lines arrived without trailing newline
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split("\n")) {
-          if (!raw) continue;
-          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-          if (raw.startsWith(":") || raw.trim() === "") continue;
-          if (!raw.startsWith("data: ")) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) onDelta(content);
-          } catch { 
-            /* ignore partial leftovers */ 
-          }
-        }
-      }
-
+      // Call onDelta once with the full generated text
+      onDelta(generatedText);
       onDone();
     } catch (error) {
       console.error("Generate prompt error:", error);
