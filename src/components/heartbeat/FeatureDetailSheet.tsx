@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Zap, Sparkles, Loader2, Paperclip, X } from 'lucide-react';
+import { Zap, Sparkles, Loader2, Paperclip, X, ChevronDown, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
@@ -13,6 +13,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface FeatureDetailSheetProps {
   feature: Feature | null;
@@ -38,7 +44,7 @@ export function FeatureDetailSheet({
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { generatePrompt, isGenerating } = useGeneratePrompt();
-  const { scrapePageContent } = useChromeMessaging();
+  const { scrapePageContent, copyImageToClipboard } = useChromeMessaging();
   const { toast } = useToast();
 
   // Sync local state when feature changes
@@ -95,6 +101,32 @@ export function FeatureDetailSheet({
     const success = await onInject();
     if (success) {
       onOpenChange(false);
+    }
+  };
+
+  const handleInjectWithImage = async () => {
+    if (!attachedImage) return;
+    
+    // Step 1: Inject the text prompt
+    const textSuccess = await onInject();
+    
+    if (textSuccess) {
+      // Step 2: Copy image to clipboard
+      const imageSuccess = await copyImageToClipboard(attachedImage);
+      
+      if (imageSuccess) {
+        toast({
+          title: 'Text injected! Image copied to clipboard',
+          description: 'Press Ctrl+V (or Cmd+V) to attach the image.',
+        });
+        onOpenChange(false);
+      } else {
+        toast({
+          title: 'Partial success',
+          description: 'Text injected but failed to copy image to clipboard.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -288,14 +320,48 @@ Example:
 
             {/* Inject Button */}
             <div className="pt-4 border-t border-border">
-              <Button
-                className="w-full bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base"
-                onClick={handleInject}
-                disabled={!localPrompt.trim()}
-              >
-                <Zap className="w-5 h-5 mr-2" />
-                Inject Prompt
-              </Button>
+              {attachedImage ? (
+                // Split button when image is attached
+                <div className="flex gap-1">
+                  {/* Primary action: Inject text only */}
+                  <Button
+                    className="flex-1 bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base rounded-r-none"
+                    onClick={handleInject}
+                    disabled={!localPrompt.trim()}
+                  >
+                    <Zap className="w-5 h-5 mr-2" />
+                    Inject Prompt Only
+                  </Button>
+                  
+                  {/* Dropdown for additional options */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        className="bg-heartbeat hover:bg-heartbeat/90 text-white h-12 px-3 rounded-l-none border-l border-white/20"
+                        disabled={!localPrompt.trim()}
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="top" className="w-56">
+                      <DropdownMenuItem onClick={handleInjectWithImage}>
+                        <ImageIcon className="w-4 h-4 mr-2" />
+                        Inject Prompt & Image
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ) : (
+                // Simple button when no image attached
+                <Button
+                  className="w-full bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base"
+                  onClick={handleInject}
+                  disabled={!localPrompt.trim()}
+                >
+                  <Zap className="w-5 h-5 mr-2" />
+                  Inject Prompt
+                </Button>
+              )}
             </div>
           </>
         ) : (

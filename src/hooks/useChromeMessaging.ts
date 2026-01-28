@@ -145,11 +145,47 @@ export function useChromeMessaging() {
     }
   }, [isExtension]);
 
+  const copyImageToClipboard = useCallback(async (base64Image: string): Promise<boolean> => {
+    try {
+      // Extract the mime type and base64 data
+      const matches = base64Image.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (!matches) {
+        console.error('Invalid base64 image format');
+        return false;
+      }
+      
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      
+      // Convert base64 to blob
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Write to clipboard using ClipboardItem
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [mimeType]: blob
+        })
+      ]);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to copy image to clipboard:', error);
+      return false;
+    }
+  }, []);
+
   return {
     isExtension,
     pageInfo,
     checkCurrentPage,
     injectPrompt,
     scrapePageContent,
+    copyImageToClipboard,
   };
 }
