@@ -1,220 +1,253 @@
 
 
-## Upgrade Inject Button with Image Injection Support
+## Persist Feature Images to Database - Implementation Plan
 
 ### Overview
-Transform the simple "Inject Prompt" button into a smart split button that offers two injection modes when an image is attached: text-only or text + image (copied to clipboard). This requires updating the UI component, adding clipboard write functionality, and updating the manifest permissions.
+Add persistent image storage for features so that attached images survive browser sessions. This requires database schema updates, storage bucket creation, and frontend changes.
 
 ---
 
-### Phase 1: Update Manifest Permissions
+### Phase 1: Database Schema Update
 
-**File: `public/manifest.json`**
-
-Add `clipboardWrite` permission to allow writing images to the system clipboard:
-
-```json
-"permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs", "identity", "clipboardWrite"],
+**SQL Migration:**
+```sql
+-- Add image_url column to features table
+ALTER TABLE public.features
+ADD COLUMN image_url TEXT;
 ```
 
 ---
 
-### Phase 2: Add Image Clipboard Function to useChromeMessaging
+### Phase 2: Create Storage Bucket
 
-**File: `src/hooks/useChromeMessaging.ts`**
+**SQL Migration:**
+```sql
+-- Create the feature-images bucket (public so images can be displayed)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('feature-images', 'feature-images', true);
 
-Add a new function to copy Base64 images to the clipboard:
+-- Allow authenticated users to upload images
+CREATE POLICY "Authenticated users can upload feature images"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'feature-images');
+
+-- Allow authenticated users to update their uploads
+CREATE POLICY "Authenticated users can update feature images"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (bucket_id = 'feature-images');
+
+-- Allow authenticated users to delete their uploads
+CREATE POLICY "Authenticated users can delete feature images"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (bucket_id = 'feature-images');
+
+-- Allow public read access for displaying images
+CREATE POLICY "Public read access for feature images"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'feature-images');
+```
+
+---
+
+### Phase 3: Install uuid Package
+
+Add the `uuid` package for generating unique filenames:
+```bash
+npm install uuid
+npm install -D @types/uuid
+```
+
+---
+
+### Phase 4: Update TypeScript Types
+
+**File: `src/types/heartbeat.ts`**
+
+Add `image_url` to both Feature interfaces:
 
 ```typescript
-const copyImageToClipboard = useCallback(async (base64Image: string): Promise<boolean> => {
-  try {
-    // Extract the mime type and base64 data
-    const matches = base64Image.match(/^data:(image\/\w+);base64,(.+)$/);
-    if (!matches) {
-      console.error('Invalid base64 image format');
+export interface Feature {
+  id: string;
+  project_id?: string;
+  title: string;
+  status: FeatureStatus;
+  prompt: string;
+  order: number;
+  image_url?: string | null;  // NEW
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbFeature {
+  id: string;
+  project_id: string;
+  title: string;
+  status: FeatureStatus;
+  prompt: string;
+  order: number;
+  image_url?: string | null;  // NEW
+  created_at: string;
+  updated_at: string;
+}
+```
+
+---
+
+### Phase 5: Create Image Upload Hook
+
+**New File: `src/hooks/useImageUpload.ts`**
+
+```typescript
+import { useCallback, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
+
+export function useImageUpload() {
+  const [uploading, setUploading] = useState(false);
+
+  const uploadImage = useCallback(async (
+    base64Image: string,
+    featureId: string
+  ): Promise<string | null> => {
+    setUploading(true);
+    try {
+      // Extract mime type and data from base64
+      const matches = base64Image.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (!matches) {
+        console.error('Invalid base64 image format');
+        return null;
+      }
+
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      const extension = mimeType.split('/')[1];
+
+      // Convert base64 to blob
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+
+      // Generate unique filename
+      const fileName = `${featureId}/${uuidv4()}.${extension}`;
+
+      // Upload to storage
+      const { data, error } = await supabase.storage
+        .from('feature-images')
+        .upload(fileName, blob, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error('Upload error:', error);
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('feature-images')
+        .getPublicUrl(data.path);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  const deleteImage = useCallback(async (imageUrl: string): Promise<boolean> => {
+    try {
+      // Extract path from URL
+      const url = new URL(imageUrl);
+      const pathMatch = url.pathname.match(/\/feature-images\/(.+)$/);
+      if (!pathMatch) return false;
+
+      const { error } = await supabase.storage
+        .from('feature-images')
+        .remove([pathMatch[1]]);
+
+      return !error;
+    } catch (error) {
+      console.error('Delete image failed:', error);
       return false;
     }
-    
-    const mimeType = matches[1];
-    const base64Data = matches[2];
-    
-    // Convert base64 to blob
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: mimeType });
-    
-    // Write to clipboard using ClipboardItem
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        [mimeType]: blob
-      })
-    ]);
-    
-    return true;
-  } catch (error) {
-    console.error('Failed to copy image to clipboard:', error);
-    return false;
-  }
-}, []);
-```
+  }, []);
 
-Update the return statement to include the new function:
-
-```typescript
-return {
-  isExtension,
-  pageInfo,
-  checkCurrentPage,
-  injectPrompt,
-  scrapePageContent,
-  copyImageToClipboard,  // Add this
-};
+  return { uploadImage, deleteImage, uploading };
+}
 ```
 
 ---
 
-### Phase 3: Update FeatureDetailSheet with Split Button
+### Phase 6: Update useProjects Hook
+
+**File: `src/hooks/useProjects.ts`**
+
+Key changes:
+1. Add `image_url` to feature mapping in fetchProjects (line ~64)
+2. Update `updateFeature` signature to accept `image_url` (line ~205)
+3. Add `image_url` to duplicateFeature (line ~299)
+
+---
+
+### Phase 7: Update FeatureDetailSheet
 
 **File: `src/components/heartbeat/FeatureDetailSheet.tsx`**
 
-#### New Imports
-```typescript
-import { Zap, Sparkles, Loader2, Paperclip, X, ChevronDown, Image } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+Major changes:
+
+1. **Initialize from `feature.image_url`** - Load existing image on open
+2. **Upload image immediately on attach** - No waiting for save
+3. **Remove button clears DB** - Delete from storage and nullify column
+
+Key flow:
 ```
-
-#### Updated Inject Button UI
-
-Replace the simple button with conditional split button (note: `side="top"` for upward dropdown):
-
-```tsx
-{/* Inject Button Section */}
-<div className="pt-4 border-t border-border">
-  {attachedImage ? (
-    // Split button when image is attached
-    <div className="flex gap-1">
-      {/* Primary action: Inject text only */}
-      <Button
-        className="flex-1 bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base rounded-r-none"
-        onClick={handleInject}
-        disabled={!localPrompt.trim()}
-      >
-        <Zap className="w-5 h-5 mr-2" />
-        Inject Prompt Only
-      </Button>
-      
-      {/* Dropdown for additional options */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            className="bg-heartbeat hover:bg-heartbeat/90 text-white h-12 px-3 rounded-l-none border-l border-white/20"
-            disabled={!localPrompt.trim()}
-          >
-            <ChevronDown className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" className="w-56">
-          <DropdownMenuItem onClick={handleInjectWithImage}>
-            <Image className="w-4 h-4 mr-2" />
-            Inject Prompt & Image
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  ) : (
-    // Simple button when no image attached
-    <Button
-      className="w-full bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base"
-      onClick={handleInject}
-      disabled={!localPrompt.trim()}
-    >
-      <Zap className="w-5 h-5 mr-2" />
-      Inject Prompt
-    </Button>
-  )}
-</div>
-```
-
-#### New Handler for Inject with Image
-
-```typescript
-const { scrapePageContent, copyImageToClipboard } = useChromeMessaging();
-
-const handleInjectWithImage = async () => {
-  if (!attachedImage) return;
-  
-  // Step 1: Inject the text prompt
-  const textSuccess = await onInject();
-  
-  if (textSuccess) {
-    // Step 2: Copy image to clipboard
-    const imageSuccess = await copyImageToClipboard(attachedImage);
-    
-    if (imageSuccess) {
-      toast({
-        title: 'Text injected! Image copied to clipboard',
-        description: 'Press Ctrl+V (or Cmd+V) to attach the image.',
-      });
-      onOpenChange(false);
-    } else {
-      toast({
-        title: 'Partial success',
-        description: 'Text injected but failed to copy image to clipboard.',
-        variant: 'destructive',
-      });
-    }
-  }
-};
+User attaches image → Show preview → Upload to storage → Save URL to DB → Replace preview with URL
 ```
 
 ---
 
-### Files to Modify
+### Phase 8: Update useChromeMessaging
 
-| File | Changes |
-|------|---------|
-| `public/manifest.json` | Add `clipboardWrite` permission |
-| `src/hooks/useChromeMessaging.ts` | Add `copyImageToClipboard` function |
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add split button UI with upward dropdown and injection handler |
+**File: `src/hooks/useChromeMessaging.ts`**
+
+Update `copyImageToClipboard` to handle both base64 and URL images by fetching URL images first.
 
 ---
 
-### UI States
+### Files Summary
 
-**Without Image Attached:**
-```
-┌─────────────────────────────────────┐
-│    [⚡] Inject Prompt               │
-└─────────────────────────────────────┘
-```
-
-**With Image Attached (Drop-Up Menu):**
-```
-                    ┌─────────────────────┐
-                    │ [🖼] Inject Prompt  │
-                    │      & Image        │
-                    └─────────────────────┘
-                                  │
-┌──────────────────────────────┬──────┐
-│  [⚡] Inject Prompt Only     │  [▼] │
-└──────────────────────────────┴──────┘
-```
+| File | Action |
+|------|--------|
+| Database | Add `image_url` column |
+| Storage | Create `feature-images` bucket with RLS |
+| `package.json` | Add `uuid` dependency |
+| `src/types/heartbeat.ts` | Add `image_url` to interfaces |
+| `src/hooks/useImageUpload.ts` | **NEW** - Upload/delete operations |
+| `src/hooks/useProjects.ts` | Include `image_url` in CRUD |
+| `src/components/heartbeat/FeatureDetailSheet.tsx` | Load from DB, upload on attach |
+| `src/hooks/useChromeMessaging.ts` | Handle URL images for clipboard |
 
 ---
 
-### Summary
+### Confirmation Notes
 
-1. **Manifest**: Add `clipboardWrite` for image clipboard access
-2. **Hook**: New `copyImageToClipboard()` converts Base64 to Blob and uses `navigator.clipboard.write()`
-3. **UI**: Split button with **upward dropdown** (`side="top"`) appears only when image is attached
-4. **Feedback**: Clear toast message guides user to paste the image manually
+- **uuid package**: Will be installed as a dependency
+- **Upload on attach**: Yes, the image uploads immediately when selected/pasted and calls `onUpdate({ image_url: url })` right away - no need to click Save
+- **Persistence**: Image URL stored in database survives browser restarts
+- **Remove button**: Deletes from storage AND nullifies the database column
 
