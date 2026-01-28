@@ -14,7 +14,7 @@ const statusConfig: Record<FeatureStatus, { label: string; className: string }> 
     className: 'bg-muted text-muted-foreground hover:bg-muted/80',
   },
   'in-progress': {
-    label: 'In Progress',
+    label: 'Next',
     className: 'bg-lavalog/20 text-lavalog hover:bg-lavalog/30',
   },
   'done': {

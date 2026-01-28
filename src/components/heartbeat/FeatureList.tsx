@@ -132,7 +132,6 @@ export function FeatureList({
                       onDuplicate={() => onDuplicateFeature(feature.id)}
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
-                      isCompact={isCompact}
                     />
                   ))}
 
@@ -161,7 +160,6 @@ export function FeatureList({
                       onDuplicate={() => onDuplicateFeature(feature.id)}
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
-                      isCompact={isCompact}
                     />
                   ))}
                   {provided.placeholder}
