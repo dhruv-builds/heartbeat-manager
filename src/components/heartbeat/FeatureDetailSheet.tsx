@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Zap } from 'lucide-react';
+import { Zap, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
 import { StatusBadge, getNextStatus } from './StatusBadge';
+import { useGeneratePrompt } from '@/hooks/useGeneratePrompt';
+import { useChromeMessaging } from '@/hooks/useChromeMessaging';
+import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
   SheetContent,
@@ -13,6 +16,7 @@ import {
 
 interface FeatureDetailSheetProps {
   feature: Feature | null;
+  existingFeatures?: Feature[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: (updates: Partial<Feature>) => void;
@@ -21,6 +25,7 @@ interface FeatureDetailSheetProps {
 
 export function FeatureDetailSheet({
   feature,
+  existingFeatures = [],
   open,
   onOpenChange,
   onUpdate,
@@ -29,6 +34,10 @@ export function FeatureDetailSheet({
   const [localTitle, setLocalTitle] = useState('');
   const [localPrompt, setLocalPrompt] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const { generatePrompt, isGenerating } = useGeneratePrompt();
+  const { scrapePageContent } = useChromeMessaging();
+  const { toast } = useToast();
 
   // Sync local state when feature changes
   useEffect(() => {
@@ -86,6 +95,50 @@ export function FeatureDetailSheet({
     }
   };
 
+  const handleGeneratePrompt = async () => {
+    if (!localTitle.trim()) {
+      toast({
+        title: 'Title required',
+        description: 'Please enter a feature title before generating a prompt.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Scrape page content
+    const pageContent = await scrapePageContent();
+    
+    // Get completed features for context
+    const doneFeatures = existingFeatures
+      .filter(f => f.status === 'done' && f.id !== feature?.id)
+      .map(f => f.title);
+
+    // Clear prompt and start streaming
+    setLocalPrompt('');
+
+    await generatePrompt({
+      pageContent,
+      featureTitle: localTitle,
+      existingFeatures: doneFeatures,
+      onDelta: (chunk) => {
+        setLocalPrompt(prev => prev + chunk);
+      },
+      onDone: () => {
+        toast({
+          title: 'Prompt generated!',
+          description: 'Your AI-generated prompt is ready. Review and edit as needed.',
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Generation failed',
+          description: error,
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col w-full sm:max-w-lg">
@@ -114,9 +167,25 @@ export function FeatureDetailSheet({
 
               {/* Prompt Input */}
               <div className="flex-1 flex flex-col min-h-0 space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Prompt
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Prompt
+                  </label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleGeneratePrompt}
+                    disabled={isGenerating || !localTitle.trim()}
+                    className="text-lavalog hover:text-lavalog/80 hover:bg-lavalog/10 h-7 px-2"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    <span className="ml-1.5 text-xs">Generate with AI</span>
+                  </Button>
+                </div>
                 <textarea
                   ref={textareaRef}
                   value={localPrompt}

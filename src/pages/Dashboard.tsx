@@ -240,6 +240,7 @@ export default function Dashboard() {
 
       <FeatureDetailSheet
         feature={selectedFeature}
+        existingFeatures={activeProject?.features || []}
         open={isDetailSheetOpen}
         onOpenChange={setIsDetailSheetOpen}
         onUpdate={(updates) => {
