@@ -15,7 +15,6 @@ interface FeatureItemProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onInject: () => void;
-  isCompact?: boolean;
 }
 
 export function FeatureItem({
@@ -28,7 +27,6 @@ export function FeatureItem({
   onDuplicate,
   onDelete,
   onInject,
-  isCompact = false,
 }: FeatureItemProps) {
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,7 +40,7 @@ export function FeatureItem({
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            'group flex items-center gap-2 p-3 rounded-lg border transition-all',
+            'group p-3 rounded-lg border transition-all',
             'hover:border-lavalog/50',
             isSelected
               ? 'border-lavalog bg-lavalog/10'
@@ -52,72 +50,76 @@ export function FeatureItem({
           )}
           onClick={onSelect}
         >
-          <div
-            {...provided.dragHandleProps}
-            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          >
-            <GripVertical className="w-4 h-4" />
-          </div>
-
-          <div className="flex-1 min-w-0 flex items-center justify-between">
-            <div className="flex-1 min-w-0 text-left">
-              <span className={cn(
-                "font-medium truncate block text-foreground",
-                isCompleted && "line-through"
-              )}>
-                {feature.title}
-              </span>
-              {!isCompact && feature.prompt && (
-                <p className={cn(
-                  "text-sm text-muted-foreground truncate mt-1",
-                  isCompleted && "line-through"
-                )}>
-                  {feature.prompt.slice(0, 80)}
-                  {feature.prompt.length > 80 ? '...' : ''}
-                </p>
-              )}
+          {/* Row 1: Drag handle + Full Title */}
+          <div className="flex items-start gap-2">
+            <div
+              {...provided.dragHandleProps}
+              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
+            >
+              <GripVertical className="w-4 h-4" />
             </div>
-            <StatusBadge status={feature.status} onClick={handleStatusClick} className="shrink-0 ml-3" />
+            <h3 className={cn(
+              "flex-1 font-semibold text-foreground break-words text-left",
+              isCompleted && "line-through"
+            )}>
+              {feature.title}
+            </h3>
           </div>
 
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-lavalog hover:text-lavalog hover:bg-lavalog/20"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                onInject();
-              }}
-              title="Inject Prompt"
-              disabled={!feature.prompt}
-            >
-              <Zap className="w-4 h-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                onDuplicate();
-              }}
-              title="Duplicate"
-            >
-              <Copy className="w-3 h-3" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              title="Delete"
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
+          {/* Row 2: Prompt preview + Badge + Actions */}
+          <div className="flex items-center justify-between mt-2 ml-6">
+            {/* Left: Prompt preview */}
+            <p className={cn(
+              "flex-1 text-sm text-muted-foreground truncate mr-3 text-left",
+              isCompleted && "line-through"
+            )}>
+              {feature.prompt?.slice(0, 60) || 'No prompt yet'}
+              {feature.prompt && feature.prompt.length > 60 ? '...' : ''}
+            </p>
+
+            {/* Right: Badge + Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              <StatusBadge status={feature.status} onClick={handleStatusClick} />
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-lavalog hover:text-lavalog hover:bg-lavalog/20"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onInject();
+                  }}
+                  title="Inject Prompt"
+                  disabled={!feature.prompt}
+                >
+                  <Zap className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onDuplicate();
+                  }}
+                  title="Duplicate"
+                >
+                  <Copy className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  title="Delete"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ export default function Dashboard() {
   const {
     projects,
     activeProject,
+    loading,
     setActiveProject,
     createProject,
     updateProject,
@@ -38,6 +39,9 @@ export default function Dashboard() {
 
   // Auto-detect Lovable project on initial load and when pageInfo changes
   useEffect(() => {
+    // Only run after projects are loaded
+    if (loading) return;
+    
     if (pageInfo?.isLovable && pageInfo.projectName) {
       const existingProject = findProjectByName(pageInfo.projectName);
       if (existingProject) {
@@ -47,7 +51,7 @@ export default function Dashboard() {
         setShowNewProjectDialog(true);
       }
     }
-  }, [pageInfo, findProjectByName, setActiveProject]);
+  }, [pageInfo, findProjectByName, setActiveProject, loading]);
 
   const selectedFeature = activeProject?.features.find(f => f.id === selectedFeatureId) || null;
 
