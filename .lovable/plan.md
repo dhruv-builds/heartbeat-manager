@@ -1,141 +1,91 @@
 
 
-## Implement AI "Generate Prompt" Feature
+## Fix 'Generate with AI' Scraping - Bug Fix Plan
 
-### Overview
-Add an AI-powered "Generate with AI" button to the Feature Detail Sheet that:
-1. Scrapes the current Lovable page content via Chrome extension messaging
-2. Fetches completed features from the current project for context
-3. Calls a Supabase Edge Function that uses Perplexity API to generate a technical prompt
-4. Streams the AI response directly into the Prompt textarea
+### Problem Identified
+The `scrapePageContent` function in `src/hooks/useChromeMessaging.ts` is failing to extract page text properly, resulting in empty content being sent to the Supabase Edge Function, causing 400 errors.
+
+### Root Cause
+The current implementation uses message passing via `chrome.tabs.sendMessage` to communicate with the content script. The user has identified that using `chrome.scripting.executeScript` is more reliable for this use case.
 
 ---
 
-### Phase 1: Create Supabase Edge Function
+### Fix 1: Update `src/hooks/useChromeMessaging.ts`
 
-**New File: `supabase/functions/generate-feature-prompt/index.ts`**
+**Change:** Replace the message-passing approach with direct script injection using `chrome.scripting.executeScript`.
 
-Create the edge function that:
-- Accepts `pageContent`, `featureTitle`, and `existingFeatures` from the request body
-- Calls Perplexity API with the `llama-3.1-sonar-large-128k-online` model
-- Uses the detailed system prompt for technical product management
-- Returns a streaming SSE response for real-time token display
-- Handles errors (402 Payment Required, 429 Rate Limit)
+**Technical Details:**
+- Add `chrome.scripting` to the TypeScript declarations
+- Modify `scrapePageContent` to use `executeScript` instead of `sendMessage`
+- Properly access the `.result` property from the first frame result: `results?.[0]?.result`
+- Return empty string on failure instead of `null` for safer handling
 
-**Update: `supabase/config.toml`**
+```typescript
+// Add to chrome type declaration:
+scripting?: {
+  executeScript: (options: {
+    target: { tabId: number };
+    func: () => string;
+  }) => Promise<Array<{ result: string }>>;
+};
 
-Add function configuration:
-```toml
-[functions.generate-feature-prompt]
-verify_jwt = false
+// Updated scrapePageContent function:
+const scrapePageContent = useCallback(async (): Promise<string | null> => {
+  if (!isExtension) {
+    return "Development mode - mock page content...";
+  }
+
+  try {
+    const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+    if (!tab?.id) return "";
+
+    const results = await chrome.scripting!.executeScript({
+      target: { tabId: tab.id },
+      func: () => document.body.innerText,
+    });
+
+    // Return the .result property from the first frame
+    return results?.[0]?.result || "";
+  } catch (error) {
+    console.error("Scraping failed:", error);
+    return "";
+  }
+}, [isExtension]);
 ```
 
 ---
 
-### Phase 2: Add Page Scraping to Chrome Extension
+### Fix 2: Update `src/components/heartbeat/FeatureDetailSheet.tsx`
 
-**Update: `public/content.js`**
+**Change:** Add a fallback in `handleGeneratePrompt` to ensure non-empty content is sent to the AI.
 
-Add a new message handler `SCRAPE_PAGE_CONTENT` that extracts `document.body.innerText` from the active tab and returns it to the extension.
+**Technical Details:**
+- Use nullish coalescing with a fallback message when scraping returns empty/null
 
-**Update: `src/hooks/useChromeMessaging.ts`**
-
-Add a new `scrapePageContent` function that:
-- Sends `SCRAPE_PAGE_CONTENT` message to the active tab
-- Returns the page text content
-- Provides mock content in dev mode (when not running as extension)
-- Update the `chrome.tabs.sendMessage` TypeScript declaration to include the new response type
+```typescript
+// In handleGeneratePrompt function, line 109:
+const pageContent = (await scrapePageContent()) || "No page content available.";
+```
 
 ---
-
-### Phase 3: Create useGeneratePrompt Hook
-
-**New File: `src/hooks/useGeneratePrompt.ts`**
-
-Create a custom hook that:
-- Manages `isGenerating` loading state
-- Handles the streaming fetch to the edge function
-- Parses SSE responses line-by-line for real-time token display
-- Calls `onDelta(chunk)` for each received token
-- Calls `onDone()` when generation completes
-- Handles 402/429 errors with appropriate error messages
-
----
-
-### Phase 4: Update FeatureDetailSheet UI
-
-**Update: `src/components/heartbeat/FeatureDetailSheet.tsx`**
-
-Interface changes:
-- Add `existingFeatures` prop to receive all project features
-- Import `Sparkles` and `Loader2` icons from lucide-react
-- Import the new hooks (`useGeneratePrompt`, `useChromeMessaging`)
-
-UI changes:
-- Add a "Generate with AI" button next to the "Prompt" label
-- Button shows sparkle icon normally, spinner when generating
-- Button is disabled when generating or when title is empty
-
-Logic:
-- On click: scrape page content, filter done features, clear prompt textarea
-- Stream AI response directly into textarea using `setLocalPrompt`
-- Show toast on success/error
-
----
-
-### Phase 5: Wire Up Dashboard
-
-**Update: `src/pages/Dashboard.tsx`**
-
-- Pass `activeProject?.features` as `existingFeatures` prop to `FeatureDetailSheet`
-
----
-
-### Files to Create
-
-| File | Purpose |
-|------|---------|
-| `supabase/functions/generate-feature-prompt/index.ts` | Edge function calling Perplexity API |
-| `src/hooks/useGeneratePrompt.ts` | Hook for AI generation with streaming |
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `supabase/config.toml` | Add function config with `verify_jwt = false` |
-| `public/content.js` | Add `SCRAPE_PAGE_CONTENT` handler |
-| `src/hooks/useChromeMessaging.ts` | Add `scrapePageContent` function |
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add AI button + generation logic |
-| `src/pages/Dashboard.tsx` | Pass features to sheet |
+| File | Change |
+|------|--------|
+| `src/hooks/useChromeMessaging.ts` | Refactor `scrapePageContent` to use `chrome.scripting.executeScript` with proper result extraction |
+| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add fallback for empty page content |
 
 ---
 
-### Technical Details
+### Why This Fix Works
 
-**Streaming Implementation:**
-- Edge function streams Perplexity response directly to client
-- Frontend parses SSE `data: {...}` lines
-- Handles `[DONE]` marker and partial JSON chunks
-- Updates textarea character-by-character for smooth UX
+1. **Direct Script Execution**: `chrome.scripting.executeScript` directly runs JavaScript in the target tab's context, bypassing potential content script messaging issues
+2. **Proper Result Access**: The `executeScript` API returns an array of injection results; each result has a `.result` property containing the return value from the injected function
+3. **Fallback Protection**: Even if scraping fails completely, the AI will receive a placeholder message instead of `null` or empty string, preventing 400 errors
 
-**Error Handling:**
-- 402 (Payment Required) - Toast about API credits
-- 429 (Rate Limit) - Toast to retry later
-- Network errors - Generic error toast
-- Missing API key - Server-side error response
-
-**System Prompt for Perplexity:**
-```
-You are an expert Technical Product Manager. Your goal is to write a precise, actionable development prompt for an AI coding assistant (like Lovable or Cursor) to build a specific feature.
-
-Input Context:
-- Project Context: A raw dump of the current webpage text. Use this to understand the app's current theme, tech stack, and content.
-- Completed Features: A list of features already built. Use this to ensure consistency and avoid duplication.
-- Target Feature: The title of the feature the user wants to build.
-
-Output Requirements:
-- Write a clear, step-by-step prompt that I can paste into an AI builder.
-- Focus on technical implementation details (e.g., 'Update the database schema to add X', 'Create a new React component for Y').
-- Keep it concise but comprehensive. Do not include introductory fluff like 'Here is your prompt'. Just output the prompt itself.
-```
+### Notes
+- The `scripting` permission is already present in `manifest.json` (line 16)
+- The content script handler `SCRAPE_PAGE_CONTENT` in `public/content.js` can remain as a fallback but won't be used by this new approach
+- Return type changes from `string | null` to always returning a string (empty string on failure)
 
