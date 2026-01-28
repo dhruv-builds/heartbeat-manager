@@ -1,181 +1,210 @@
 
 
-## UX Improvements: Status Rename, Project Sync Fix, and Feature Layout Redesign
+## Add Google OAuth to Chrome Extension Login
 
 ### Overview
-Three improvements to finalize the app UX:
-1. Rename "In Progress" status to "Next"
-2. Fix race condition causing duplicate project creation prompts
-3. Redesign feature row to a 2-row layout for better readability
+Add a "Continue with Google" button to the Auth page that uses Chrome's Identity API for the OAuth flow, which is required for extensions since standard browser redirects don't work in popup/side panel contexts.
 
 ---
 
-### Change 1: Rename "In Progress" to "Next"
+### Phase 1: Update Manifest Permissions
 
-**File: `src/components/heartbeat/StatusBadge.tsx`**
+**File: `public/manifest.json`**
 
-Update the label in the `statusConfig` object:
+Add the `identity` permission required for `chrome.identity.launchWebAuthFlow`:
 
-```typescript
-'in-progress': {
-  label: 'Next',  // Changed from 'In Progress'
-  className: 'bg-lavalog/20 text-lavalog hover:bg-lavalog/30',
-},
+```json
+"permissions": ["sidePanel", "scripting", "activeTab", "storage", "tabs", "identity"],
 ```
-
-- Keep the same `'in-progress'` key (no database changes)
-- Keep the pink color styling
-- Only the display label changes
 
 ---
 
-### Change 2: Fix Duplicate Project Creation
+### Phase 2: Update Auth.tsx
 
-**Problem**: The Dashboard's `useEffect` that auto-detects projects runs before `projects` are loaded from Supabase. When `pageInfo` arrives but `projects` is still empty, `findProjectByName` returns `null`, triggering the "Create new project" dialog even when the project exists.
+**File: `src/pages/Auth.tsx`**
 
-**File: `src/pages/Dashboard.tsx`**
-
-**Solution**: Add a dependency on the `loading` state and only run auto-detection after projects have been fetched.
-
-1. Import `loading` from `useProjects()`:
+#### New State
 ```typescript
-const {
-  projects,
-  activeProject,
-  loading,  // <-- Add this
-  setActiveProject,
-  // ...
-} = useProjects();
+const [googleLoading, setGoogleLoading] = useState(false);
 ```
 
-2. Update the auto-detect useEffect to wait for loading:
+#### Google Login Handler
 ```typescript
-useEffect(() => {
-  // Only run after projects are loaded
-  if (loading) return;
-  
-  if (pageInfo?.isLovable && pageInfo.projectName) {
-    const existingProject = findProjectByName(pageInfo.projectName);
-    if (existingProject) {
-      setActiveProject(existingProject.id);
-    } else {
-      setSuggestedProjectName(pageInfo.projectName);
-      setShowNewProjectDialog(true);
+const handleGoogleLogin = async () => {
+  setGoogleLoading(true);
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: chrome.identity.getRedirectURL(),
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) throw error;
+
+    if (data?.url) {
+      chrome.identity.launchWebAuthFlow(
+        {
+          url: data.url,
+          interactive: true,
+        },
+        async (redirectUrl) => {
+          if (chrome.runtime.lastError) {
+            console.error('Auth flow error:', chrome.runtime.lastError);
+            toast({
+              title: 'Login cancelled',
+              description: 'Google sign-in was cancelled or failed.',
+              variant: 'destructive',
+            });
+            setGoogleLoading(false);
+            return;
+          }
+
+          if (redirectUrl) {
+            // Parse tokens from the redirect URL hash fragment
+            const hashParams = new URLSearchParams(redirectUrl.split('#')[1]);
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+
+            if (accessToken && refreshToken) {
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (sessionError) {
+                toast({
+                  title: 'Session error',
+                  description: sessionError.message,
+                  variant: 'destructive',
+                });
+              } else {
+                toast({
+                  title: 'Welcome!',
+                  description: 'Successfully signed in with Google.',
+                });
+              }
+            }
+          }
+          setGoogleLoading(false);
+        }
+      );
     }
+  } catch (error: any) {
+    console.error('Google Auth Error:', error);
+    toast({
+      title: 'Login failed',
+      description: error.message || 'Failed to sign in with Google.',
+      variant: 'destructive',
+    });
+    setGoogleLoading(false);
   }
-}, [pageInfo, findProjectByName, setActiveProject, loading]);
+};
 ```
 
-3. Similarly update `handleSync` to show a loading state if projects aren't ready yet.
+#### UI Changes
 
----
-
-### Change 3: Redesign Feature Row Layout
-
-**File: `src/components/heartbeat/FeatureItem.tsx`**
-
-Transform from single-row to 2-row layout:
-
-**Current Layout (Single Row):**
-```
-[Grip] [Title... (truncated)] [Badge] [Actions]
-```
-
-**New Layout (Two Rows):**
-```
-Row 1: [Grip] [Full Title - bold, wraps if long]
-Row 2:        [Prompt preview (gray, truncated)] [Status Badge] [Actions]
-```
-
-#### Implementation Details:
+Add Google button above the email/password form with a visual separator:
 
 ```tsx
-<Draggable draggableId={feature.id} index={index}>
-  {(provided, snapshot) => (
-    <div
-      ref={provided.innerRef}
-      {...provided.draggableProps}
-      className={cn(
-        'group p-3 rounded-lg border transition-all',
-        'hover:border-lavalog/50',
-        isSelected ? 'border-lavalog bg-lavalog/10' : 'border-border bg-card',
-        snapshot.isDragging && 'shadow-lg',
-        isCompleted && 'opacity-60'
-      )}
-      onClick={onSelect}
-    >
-      {/* Row 1: Drag handle + Full Title */}
-      <div className="flex items-start gap-2">
-        <div
-          {...provided.dragHandleProps}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
-        >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <h3 className={cn(
-          "flex-1 font-semibold text-foreground break-words",
-          isCompleted && "line-through"
-        )}>
-          {feature.title}
-        </h3>
-      </div>
-
-      {/* Row 2: Prompt preview + Badge + Actions */}
-      <div className="flex items-center justify-between mt-2 ml-6">
-        {/* Left: Prompt preview */}
-        <p className={cn(
-          "flex-1 text-sm text-muted-foreground truncate mr-3",
-          isCompleted && "line-through"
-        )}>
-          {feature.prompt?.slice(0, 60) || 'No prompt yet'}
-          {feature.prompt && feature.prompt.length > 60 ? '...' : ''}
-        </p>
-
-        {/* Right: Badge + Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          <StatusBadge status={feature.status} onClick={handleStatusClick} />
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button size="icon" variant="ghost" onClick={onInject} title="Inject">
-              <Zap className="w-4 h-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={onDuplicate} title="Duplicate">
-              <Copy className="w-3 h-3" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={onDelete} title="Delete">
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+{/* Google OAuth Button */}
+<Button
+  type="button"
+  variant="outline"
+  className="w-full"
+  onClick={handleGoogleLogin}
+  disabled={loading || googleLoading}
+>
+  {googleLoading ? (
+    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+  ) : (
+    <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+      <path
+        fill="currentColor"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="currentColor"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="currentColor"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      />
+      <path
+        fill="currentColor"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </svg>
   )}
-</Draggable>
-```
+  Continue with Google
+</Button>
 
-#### Key Layout Changes:
-| Aspect | Before | After |
-|--------|--------|-------|
-| Title display | Truncated, single line | Full width, bold, wraps |
-| Prompt preview | Below title (same row area) | Row 2, left side |
-| Badge position | End of Row 1 | Row 2, right side |
-| Actions | End of Row 1 | Row 2, far right |
-| Row structure | Flex row | Two stacked flex rows |
+{/* Divider */}
+<div className="relative">
+  <div className="absolute inset-0 flex items-center">
+    <span className="w-full border-t" />
+  </div>
+  <div className="relative flex justify-center text-xs uppercase">
+    <span className="bg-background px-2 text-muted-foreground">
+      Or continue with email
+    </span>
+  </div>
+</div>
+```
 
 ---
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/components/heartbeat/StatusBadge.tsx` | Rename label from "In Progress" to "Next" |
-| `src/pages/Dashboard.tsx` | Add `loading` dependency to prevent race condition |
-| `src/components/heartbeat/FeatureItem.tsx` | Redesign to 2-row layout |
+| File | Changes |
+|------|---------|
+| `public/manifest.json` | Add `identity` permission |
+| `src/pages/Auth.tsx` | Add Google button, handler, loading state, divider |
 
 ---
 
-### Summary
+### Technical Notes
 
-1. **Status Rename**: Simple label change, no backend impact
-2. **Sync Fix**: Wait for projects to load before auto-detection runs
-3. **Layout Redesign**: Two-row structure ensures full title visibility while keeping all controls accessible
+1. **Chrome Identity API**: `chrome.identity.launchWebAuthFlow` opens a separate auth window that properly handles OAuth redirects
+2. **Redirect URL**: `chrome.identity.getRedirectURL()` returns `https://<extension-id>.chromiumapp.org/` which must be whitelisted in Supabase
+3. **Token Parsing**: The redirect URL contains tokens in the hash fragment (`#access_token=...&refresh_token=...`)
+4. **Error Handling**: Check `chrome.runtime.lastError` for user cancellation or flow errors
+5. **Loading States**: Separate `googleLoading` state keeps email form usable during Google auth
+
+---
+
+### Layout Preview
+
+```
+┌─────────────────────────────────────┐
+│         [Logo] LovaLog              │
+│      Lovable Backlog Manager        │
+│                                     │
+│    Sign in to your account          │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ [G] Continue with Google    │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ──────── Or continue with ──────   │
+│                                     │
+│  Email                              │
+│  ┌─────────────────────────────┐    │
+│  │ you@example.com             │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  Password                           │
+│  ┌─────────────────────────────┐    │
+│  │ ••••••••                    │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │         Sign In             │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│    Don't have an account? Sign up   │
+└─────────────────────────────────────┘
+```
 
