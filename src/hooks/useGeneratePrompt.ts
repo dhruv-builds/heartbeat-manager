@@ -4,6 +4,7 @@ interface GeneratePromptOptions {
   pageContent: string | null;
   featureTitle: string;
   existingFeatures: string[];
+  attachedImage?: string | null;
   onDelta: (chunk: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -16,6 +17,7 @@ export function useGeneratePrompt() {
     pageContent,
     featureTitle,
     existingFeatures,
+    attachedImage,
     onDelta,
     onDone,
     onError,
@@ -35,6 +37,7 @@ export function useGeneratePrompt() {
             pageContent,
             featureTitle,
             existingFeatures,
+            attachedImage,
           }),
         }
       );

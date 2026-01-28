@@ -12,10 +12,12 @@ Input Context:
 - Project Context: A raw dump of the current webpage text. Use this to understand the app's current theme, tech stack, and content.
 - Completed Features: A list of features already built. Use this to ensure consistency and avoid duplication.
 - Target Feature: The title of the feature the user wants to build.
+- Visual Reference (Optional): A screenshot or mockup image. Analyze the UI elements, layout, and design patterns shown.
 
 Output Requirements:
 - Write a clear, step-by-step prompt that I can paste into an AI builder.
 - Focus on technical implementation details (e.g., 'Update the database schema to add X', 'Create a new React component for Y').
+- If an image is provided, reference specific visual elements you observe (e.g., 'Match the button style shown in the screenshot', 'Use the layout pattern visible in the mockup').
 - Keep it concise but comprehensive. Do not include introductory fluff like 'Here is your prompt'. Just output the prompt itself.`;
 
 serve(async (req) => {
@@ -25,7 +27,7 @@ serve(async (req) => {
   }
 
   try {
-    const { pageContent, featureTitle, existingFeatures } = await req.json();
+    const { pageContent, featureTitle, existingFeatures, attachedImage } = await req.json();
 
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     if (!PERPLEXITY_API_KEY) {
@@ -51,7 +53,30 @@ ${featureTitle}
 
 Generate a precise, actionable development prompt for this feature.`;
 
-    console.log("Calling Perplexity API for feature:", featureTitle);
+    // Build multimodal message content
+    const userMessageContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      {
+        type: "text",
+        text: userPrompt,
+      },
+    ];
+
+    // Add image if provided
+    if (attachedImage) {
+      userMessageContent.push({
+        type: "image_url",
+        image_url: {
+          url: attachedImage,
+        },
+      });
+    }
+
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessageContent },
+    ];
+
+    console.log("Calling Perplexity API for feature:", featureTitle, "with image:", !!attachedImage);
 
     const response = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -60,12 +85,9 @@ Generate a precise, actionable development prompt for this feature.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-sonar-large-128k-online",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        stream: true,
+        model: "sonar-pro",
+        messages,
+        stream: false,
       }),
     });
 
@@ -102,14 +124,9 @@ Generate a precise, actionable development prompt for this feature.`;
       );
     }
 
-    // Stream the response directly to the client
-    return new Response(response.body, {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
+    const data = await response.json();
+    return new Response(JSON.stringify(data), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Edge function error:", error);

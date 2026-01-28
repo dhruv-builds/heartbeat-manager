@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Zap, Sparkles, Loader2 } from 'lucide-react';
+import { Zap, Sparkles, Loader2, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
@@ -33,7 +33,9 @@ export function FeatureDetailSheet({
 }: FeatureDetailSheetProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localPrompt, setLocalPrompt] = useState('');
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { generatePrompt, isGenerating } = useGeneratePrompt();
   const { scrapePageContent } = useChromeMessaging();
@@ -44,6 +46,7 @@ export function FeatureDetailSheet({
     if (feature) {
       setLocalTitle(feature.title);
       setLocalPrompt(feature.prompt);
+      setAttachedImage(null);
     }
   }, [feature?.id, feature?.title, feature?.prompt]);
 
@@ -95,6 +98,36 @@ export function FeatureDetailSheet({
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            setAttachedImage(reader.result as string);
+            toast({ title: 'Image attached from clipboard' });
+          };
+          reader.readAsDataURL(file);
+        }
+        break;
+      }
+    }
+  };
+
   const handleGeneratePrompt = async () => {
     if (!localTitle.trim()) {
       toast({
@@ -120,6 +153,7 @@ export function FeatureDetailSheet({
       pageContent,
       featureTitle: localTitle,
       existingFeatures: doneFeatures,
+      attachedImage,
       onDelta: (chunk) => {
         setLocalPrompt(prev => prev + chunk);
       },
@@ -141,7 +175,7 @@ export function FeatureDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col w-full sm:max-w-lg">
+      <SheetContent className="flex flex-col w-full sm:max-w-lg" onPaste={handlePaste}>
         {feature ? (
           <>
             <SheetHeader>
@@ -171,20 +205,38 @@ export function FeatureDetailSheet({
                   <label className="text-sm font-medium text-muted-foreground">
                     Prompt
                   </label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleGeneratePrompt}
-                    disabled={isGenerating || !localTitle.trim()}
-                    className="text-lavalog hover:text-lavalog/80 hover:bg-lavalog/10 h-7 px-2"
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                    <span className="ml-1.5 text-xs">Generate with AI</span>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-muted-foreground hover:text-foreground h-7 px-2"
+                      title="Attach image"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleGeneratePrompt}
+                      disabled={isGenerating || !localTitle.trim()}
+                      className="text-lavalog hover:text-lavalog/80 hover:bg-lavalog/10 h-7 px-2"
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      <span className="ml-1.5 text-xs">Generate with AI</span>
+                    </Button>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
                 </div>
                 <textarea
                   ref={textareaRef}
@@ -208,6 +260,25 @@ Example:
                   style={{ minHeight: '240px', maxHeight: '480px' }}
                 />
               </div>
+
+              {/* Image Preview */}
+              {attachedImage && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                  <img 
+                    src={attachedImage} 
+                    alt="Attached" 
+                    className="w-[100px] h-[100px] object-cover rounded"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setAttachedImage(null)}
+                    className="h-6 w-6"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
               {/* Auto-save indicator */}
               <div className="text-xs text-muted-foreground">
