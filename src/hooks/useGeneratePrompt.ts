@@ -83,19 +83,21 @@ export function useGeneratePrompt() {
 
           const jsonStr = line.slice(6).trim();
           if (jsonStr === "[DONE]") {
-            break;
+            continue;
           }
 
           try {
             const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) {
+            // Perplexity uses same format as OpenAI: choices[0].delta.content
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (typeof content === 'string' && content) {
               onDelta(content);
             }
-          } catch {
-            // Incomplete JSON split across chunks: put it back and wait for more data
-            textBuffer = line + "\n" + textBuffer;
-            break;
+          } catch (parseError) {
+            // Log parse errors for debugging
+            console.warn("SSE parse error:", parseError, "Line:", jsonStr.slice(0, 100));
+            // Skip malformed lines instead of breaking
+            continue;
           }
         }
       }
