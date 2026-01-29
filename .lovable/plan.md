@@ -1,146 +1,175 @@
 
 
-## Revert to Standard Supabase Authentication
+## Landing Page Art Direction Redesign
 
 ### Overview
-Remove the Lovable Cloud managed OAuth wrapper and restore direct Supabase authentication for Google sign-in. Your Supabase client is already correctly configured to use your environment variables.
+Transform the landing page from a standard SaaS grid layout into a more editorial, design-forward experience with stronger visual hierarchy, generous whitespace, and atmospheric background effects.
 
 ---
 
-### Current State
+### Hero Section Redesign
 
-| File | Status |
-|------|--------|
-| `src/integrations/supabase/client.ts` | Already using `import.meta.env.VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` |
-| `src/integrations/lovable/index.ts` | Contains Lovable Cloud auth wrapper (needs removal) |
-| `src/pages/Auth.tsx` | Web flow uses `lovable.auth.signInWithOAuth` (needs to use `supabase.auth.signInWithOAuth`) |
+**Layout Change: Side-by-Side Split**
 
----
+```
+Desktop (lg+):
+┌─────────────────────────────────────────────────────────┐
+│  Logo  |                                        Login   │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   [HEADLINE]                    ┌─────────────────┐     │
+│   Build better.                 │                 │     │
+│   Waste nothing.                │   Hero Image    │     │
+│                                 │   (Browser      │     │
+│   [SUBHEAD]                     │   Mockup)       │     │
+│   Your backlog sidekick...      │                 │     │
+│                                 │   drop-shadow   │     │
+│   [CTA BUTTONS]                 └─────────────────┘     │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 
-### Phase 1: Update Auth.tsx - Remove Lovable Cloud Import
-
-**File: `src/pages/Auth.tsx`**
-
-**Change 1:** Remove the lovable import (line 5)
-```typescript
-// REMOVE THIS LINE:
-import { lovable } from '@/integrations/lovable';
+Mobile:
+┌─────────────────────┐
+│   [HEADLINE]        │
+│   [SUBHEAD]         │
+│   [BUTTONS]         │
+│                     │
+│   ┌───────────────┐ │
+│   │  Hero Image   │ │
+│   └───────────────┘ │
+└─────────────────────┘
 ```
 
-**Change 2:** Update the web browser flow (lines 102-108) to use standard Supabase OAuth:
+**Hero Image:**
+- Copy `user-uploads://Untitled_design_2.png` to `src/assets/hero-mockup.png`
+- Import as ES6 module for proper bundling
+- Apply `drop-shadow-2xl` to the image container
+- Slightly rotate image (2-3 degrees) for visual interest
 
+---
+
+### Copy Rewrite: Product/Designer Tone
+
+| Section | Before (Corporate SaaS) | After (Designer Tone) |
+|---------|------------------------|----------------------|
+| **Headline** | "Build Better Lovable Apps. Spend Fewer Credits." | "Build better. Waste nothing." |
+| **Subhead** | "The all-in-one Chrome Extension for backlog management, AI prompt engineering, and smart credit monitoring." | "Your backlog sidekick for Lovable. Capture ideas, craft prompts, track credits—all from your browser." |
+| **Pain Section Title** | "Stop Wasting Your Lovable Credits" | "The problems we fix" |
+| **Pain 1** | "Bad Prompts Burn Budget" | "Vague prompts, wasted credits" |
+| **Pain 2** | "Context Switching Kills Flow" | "Ideas lost between projects" |
+| **Pain 3** | "Use It or Lose It" | "Credits that expire at midnight" |
+| **Features Title** | "Everything You Need to Ship Faster" | "What's inside" |
+| **CTA Title** | "Ready to Build Better?" | "Start building smarter" |
+| **CTA Text** | "Join thousands of Lovable builders..." | "It's free. It's fast. It works." |
+
+---
+
+### Visual Atmosphere: Grain + Gradient Blobs
+
+**New CSS Utilities to Add:**
+
+1. **Noise/Grain Overlay**
+   ```css
+   .noise-overlay {
+     position: fixed;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 100%;
+     pointer-events: none;
+     opacity: 0.03;
+     background-image: url("data:image/svg+xml,..."); /* noise pattern */
+     z-index: 50;
+   }
+   ```
+
+2. **Blurred Gradient Blobs (Decorative)**
+   ```css
+   .gradient-blob {
+     position: absolute;
+     border-radius: 50%;
+     filter: blur(120px);
+     opacity: 0.15;
+   }
+   ```
+
+**Placement:**
+- Pink blob: Top-left of hero, offset behind headline
+- Purple blob: Center-right, behind hero image
+- Orange blob: Bottom sections, subtle accent
+
+---
+
+### Layout Simplification
+
+**Remove Card Grids, Add Breathing Room:**
+
+| Section | Before | After |
+|---------|--------|-------|
+| Pain Points | 3-column card grid | Vertical stack with large icons, generous spacing (py-24 → py-32) |
+| Features | 2x2 card grid | Alternating left-right layout OR simple vertical list with dividers |
+| Section spacing | py-20 | py-28 to py-32 |
+| Max content width | max-w-6xl | max-w-5xl (tighter, more focused) |
+
+---
+
+### Typography Hierarchy Enhancement
+
+**Changes:**
+- Hero headline: `text-5xl lg:text-7xl` with tighter `leading-[1.1]`
+- Section headlines: `text-3xl lg:text-5xl`
+- Body text: Increase line-height for readability
+- Pain point titles: Larger, gradient text for impact
+- Feature titles: `text-2xl font-semibold`
+
+---
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/assets/hero-mockup.png` | **Create** - Copy uploaded image here |
+| `src/pages/LandingPage.tsx` | Rewrite hero layout, update copy, restructure sections, add gradient blobs |
+| `src/index.css` | Add `.noise-overlay`, `.gradient-blob` utilities |
+
+---
+
+### Technical Details
+
+**Hero Image Implementation:**
 ```typescript
-// BEFORE (Lovable Cloud):
-} else {
-  // Web browser flow - use Lovable Cloud managed OAuth
-  const { error } = await lovable.auth.signInWithOAuth('google', {
-    redirect_uri: window.location.origin,
-  });
-  if (error) throw error;
-}
+import heroMockup from '@/assets/hero-mockup.png';
 
-// AFTER (Direct Supabase):
-} else {
-  // Web browser flow - use direct Supabase OAuth
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: window.location.origin,
-    },
-  });
-  if (error) throw error;
-  // Browser handles redirect automatically
-}
+// In JSX:
+<div className="relative drop-shadow-2xl">
+  <img 
+    src={heroMockup} 
+    alt="LovaLog Chrome Extension" 
+    className="w-full max-w-lg rounded-2xl rotate-2"
+  />
+</div>
 ```
 
----
-
-### Phase 2: Remove Lovable Cloud Auth File
-
-**File: `src/integrations/lovable/index.ts`**
-
-**Action:** Delete this file entirely, or replace contents with an empty export to prevent import errors during cleanup.
-
-Option A - Delete the file completely
-Option B - Replace with empty placeholder:
-```typescript
-// Lovable Cloud auth disabled - using direct Supabase authentication
-export const lovable = {};
+**Gradient Blob Implementation:**
+```tsx
+{/* Decorative blobs */}
+<div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-pink rounded-full filter blur-[120px] opacity-15" />
+<div className="absolute top-1/2 -right-48 w-[500px] h-[500px] bg-brand-purple rounded-full filter blur-[150px] opacity-10" />
 ```
 
----
-
-### Phase 3: Verify Supabase Client Configuration
-
-**File: `src/integrations/supabase/client.ts`**
-
-This file is already correctly configured:
-```typescript
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-```
-
-No changes needed here.
+**Background:**
+- Keep `#0D0D0D` (already set via `--background: 0 0% 5%` in dark mode)
+- Remove `bg-card/50` alternating sections for cleaner look
+- Use subtle border separators instead
 
 ---
 
-### Files Summary
+### Summary
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/pages/Auth.tsx` | Modify | Remove lovable import, use `supabase.auth.signInWithOAuth` directly |
-| `src/integrations/lovable/index.ts` | Delete | Remove Lovable Cloud auth wrapper |
-| `src/integrations/supabase/client.ts` | No change | Already using your env vars correctly |
-
----
-
-### Important Note: Google OAuth Configuration
-
-For Google OAuth to work with your own Supabase project, ensure you have:
-
-1. **In Google Cloud Console:**
-   - Created OAuth 2.0 credentials
-   - Added authorized redirect URI: `https://YOUR_SUPABASE_PROJECT_ID.supabase.co/auth/v1/callback`
-
-2. **In Supabase Dashboard:**
-   - Go to Authentication > Providers > Google
-   - Enable Google provider
-   - Add your Google Client ID and Client Secret
-
----
-
-### Final Auth.tsx handleGoogleLogin Function
-
-After changes, the function will look like:
-
-```typescript
-const handleGoogleLogin = async () => {
-  setGoogleLoading(true);
-  try {
-    if (isExtension) {
-      // Chrome extension flow - use direct Supabase OAuth
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: chrome.identity.getRedirectURL(),
-          skipBrowserRedirect: true,
-        },
-      });
-      // ... existing chrome.identity.launchWebAuthFlow logic
-    } else {
-      // Web browser flow - use direct Supabase OAuth
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (error) throw error;
-      // Browser handles redirect automatically
-    }
-  } catch (error: any) {
-    // ... error handling
-  }
-};
-```
+1. Copy hero image to `src/assets/hero-mockup.png`
+2. Rewrite `LandingPage.tsx` with split hero layout (text left, image right)
+3. Update all copy to designer/product tone
+4. Add atmospheric gradient blobs and noise texture
+5. Simplify card grids into cleaner vertical layouts
+6. Increase whitespace and typography scale
 
