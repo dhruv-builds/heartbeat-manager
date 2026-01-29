@@ -13,6 +13,7 @@ import {
   Chrome,
   ExternalLink
 } from 'lucide-react';
+import heroMockup from '@/assets/hero-mockup.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -37,18 +38,18 @@ export default function LandingPage() {
   const painPoints = [
     {
       icon: Flame,
-      title: 'Bad Prompts Burn Budget',
-      description: 'Vague prompts lead to bad builds and wasted credits. Every retry costs you.',
+      title: 'Vague prompts, wasted credits',
+      description: 'Unclear instructions lead to bad builds. Every retry costs you.',
     },
     {
       icon: Brain,
-      title: 'Context Switching Kills Flow',
-      description: 'You forget great ideas when bouncing between projects. Your backlog is scattered.',
+      title: 'Ideas lost between projects',
+      description: "Great ideas slip away when you're bouncing between projects.",
     },
     {
       icon: Clock,
-      title: 'Use It or Lose It',
-      description: 'Daily credits expire at midnight. Monitor them instantly so you never waste a single one.',
+      title: 'Credits that expire at midnight',
+      description: "Daily credits vanish if you don't use them. Stay on top of it.",
     },
   ];
 
@@ -76,10 +77,18 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+      {/* Noise Overlay */}
+      <div className="noise-overlay" />
+      
+      {/* Decorative Gradient Blobs */}
+      <div className="absolute -top-48 -left-48 w-[500px] h-[500px] rounded-full bg-[hsl(340,100%,71%)] blur-[150px] opacity-[0.12] pointer-events-none" />
+      <div className="absolute top-1/3 -right-64 w-[600px] h-[600px] rounded-full bg-[hsl(280,100%,65%)] blur-[180px] opacity-[0.08] pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] rounded-full bg-[hsl(28,100%,63%)] blur-[140px] opacity-[0.06] pointer-events-none" />
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <GradientLogo size="sm" />
           
           <div className="flex items-center gap-3">
@@ -103,68 +112,81 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section ref={heroRef} className="pt-32 pb-20 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex justify-center mb-8">
-            <GradientLogo size="xl" showText={false} />
-          </div>
-          
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
-            Build Better Lovable Apps.
-            <br />
-            <span className="gradient-brand-text">Spend Fewer Credits.</span>
-          </h1>
-          
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            The all-in-one Chrome Extension for backlog management, AI prompt engineering, 
-            and smart credit monitoring.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href="https://chrome.google.com/webstore"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="gradient-button px-8 py-3 rounded-lg font-semibold text-lg flex items-center gap-2 w-full sm:w-auto justify-center"
-            >
-              <Chrome size={20} />
-              Get the Chrome Extension
-            </a>
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={() => navigate('/auth')}
-              className="border-border hover:bg-accent w-full sm:w-auto"
-            >
-              Login / Go to Dashboard
-              <ExternalLink size={16} className="ml-2" />
-            </Button>
+      {/* Hero Section - Split Layout */}
+      <section ref={heroRef} className="pt-32 lg:pt-40 pb-24 lg:pb-32 px-6 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: Text Content */}
+            <div className="order-1">
+              <h1 className="text-5xl lg:text-7xl font-bold mb-6 leading-[1.1] tracking-tight">
+                Build better.
+                <br />
+                <span className="gradient-brand-text">Waste nothing.</span>
+              </h1>
+              
+              <p className="text-lg lg:text-xl text-muted-foreground max-w-md mb-10 leading-relaxed">
+                Your backlog sidekick for Lovable. Capture ideas, craft prompts, track credits—all from your browser.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <a
+                  href="https://chrome.google.com/webstore"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gradient-button px-8 py-3.5 rounded-xl font-semibold text-base flex items-center gap-2.5"
+                >
+                  <Chrome size={20} />
+                  Get the Extension
+                </a>
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  onClick={() => navigate('/auth')}
+                  className="border-border hover:bg-accent rounded-xl h-[50px]"
+                >
+                  Go to Dashboard
+                  <ExternalLink size={16} className="ml-2" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Right: Hero Image */}
+            <div className="order-2 lg:order-2 relative">
+              <div className="relative drop-shadow-2xl">
+                <img 
+                  src={heroMockup} 
+                  alt="LovaLog Chrome Extension" 
+                  className="w-full max-w-lg mx-auto lg:max-w-none rounded-2xl rotate-2 hover:rotate-0 transition-transform duration-500"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Pain Points Section */}
-      <section className="py-20 px-4 sm:px-6 bg-card/50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
-            Stop Wasting Your <span className="gradient-brand-text">Lovable Credits</span>
-          </h2>
-          <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Every Lovable builder faces these challenges. LovaLog solves them all.
+      <section className="py-28 lg:py-32 px-6 relative z-10 border-t border-border">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-4">
+            Why LovaLog?
           </p>
+          <h2 className="text-3xl lg:text-5xl font-bold mb-16 leading-[1.15]">
+            The problems <span className="gradient-brand-text">we fix</span>
+          </h2>
           
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="space-y-12">
             {painPoints.map((item, index) => (
               <div 
                 key={index}
-                className="bg-card border border-border rounded-xl p-6 hover:border-brand-purple/50 transition-colors"
+                className="flex items-start gap-6 group"
               >
-                <div className="w-12 h-12 gradient-brand rounded-lg flex items-center justify-center mb-4">
+                <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                   <item.icon size={24} className="text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                <p className="text-muted-foreground">{item.description}</p>
+                <div>
+                  <h3 className="text-2xl font-semibold mb-2">{item.title}</h3>
+                  <p className="text-muted-foreground text-lg leading-relaxed max-w-lg">{item.description}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -172,29 +194,27 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
-            Everything You Need to <span className="gradient-brand-text">Ship Faster</span>
-          </h2>
-          <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            LovaLog is built specifically for Lovable builders. Every feature is designed to save you time and credits.
+      <section className="py-28 lg:py-32 px-6 relative z-10 border-t border-border">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-4">
+            Features
           </p>
+          <h2 className="text-3xl lg:text-5xl font-bold mb-16 leading-[1.15]">
+            What's <span className="gradient-brand-text">inside</span>
+          </h2>
           
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 gap-x-16 gap-y-12">
             {features.map((item, index) => (
               <div 
                 key={index}
-                className="bg-card border border-border rounded-xl p-6 hover:border-brand-purple/50 transition-colors"
+                className="flex items-start gap-5 group"
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 gradient-brand rounded-lg flex items-center justify-center flex-shrink-0">
-                    <item.icon size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                    <p className="text-muted-foreground">{item.description}</p>
-                  </div>
+                <div className="w-12 h-12 gradient-brand rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <item.icon size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{item.description}</p>
                 </div>
               </div>
             ))}
@@ -203,30 +223,30 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 bg-card/50">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Ready to Build <span className="gradient-brand-text">Better</span>?
+      <section className="py-28 lg:py-32 px-6 relative z-10 border-t border-border">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl lg:text-5xl font-bold mb-6 leading-[1.15]">
+            Start building <span className="gradient-brand-text">smarter</span>
           </h2>
-          <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Join thousands of Lovable builders who are shipping faster and spending fewer credits.
+          <p className="text-muted-foreground text-lg mb-10">
+            It's free. It's fast. It works.
           </p>
           <a
             href="https://chrome.google.com/webstore"
             target="_blank"
             rel="noopener noreferrer"
-            className="gradient-button px-8 py-3 rounded-lg font-semibold text-lg inline-flex items-center gap-2"
+            className="gradient-button px-10 py-4 rounded-xl font-semibold text-lg inline-flex items-center gap-3"
           >
-            <Chrome size={20} />
-            Get the Chrome Extension — It's Free
+            <Chrome size={22} />
+            Get the Chrome Extension
           </a>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-4 sm:px-6 border-t border-border">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+      <footer className="py-10 px-6 border-t border-border relative z-10">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <GradientLogo size="sm" showText={false} />
             <span className="text-sm text-muted-foreground">© 2026 LovaLog</span>
           </div>
@@ -247,16 +267,16 @@ export default function LandingPage() {
         <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background/95 backdrop-blur-sm border-t border-border animate-in slide-in-from-bottom-4 duration-300">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <span className="text-foreground font-medium hidden sm:block">
-              Ready to build better Lovable apps?
+              Ready to build smarter?
             </span>
             <a
               href="https://chrome.google.com/webstore"
               target="_blank"
               rel="noopener noreferrer"
-              className="gradient-button px-6 py-2 rounded-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
+              className="gradient-button px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               <Chrome size={18} />
-              Get the Chrome Extension
+              Get the Extension
             </a>
           </div>
         </div>
