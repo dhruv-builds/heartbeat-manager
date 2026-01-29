@@ -67,7 +67,7 @@ export function FeatureList({
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 text-lavalog hover:text-lavalog hover:bg-lavalog/20"
+          className="h-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
           onClick={() => setIsAdding(true)}
         >
           <Plus className="w-4 h-4 mr-1" />
@@ -77,7 +77,7 @@ export function FeatureList({
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {isAdding && (
-          <div className="flex items-center gap-2 p-2 rounded-lg border border-lavalog bg-lavalog/10">
+          <div className="flex items-center gap-2 p-2 rounded-lg border border-brand-purple bg-brand-purple/10">
             <Input
               value={newFeatureTitle}
               onChange={(e) => setNewFeatureTitle(e.target.value)}
@@ -103,7 +103,7 @@ export function FeatureList({
             <p className="text-muted-foreground text-sm">No features yet</p>
             <Button
               variant="link"
-              className="text-lavalog mt-2"
+              className="text-brand-purple mt-2"
               onClick={() => setIsAdding(true)}
             >
               Add your first feature

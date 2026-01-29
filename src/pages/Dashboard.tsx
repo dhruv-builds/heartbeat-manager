@@ -233,7 +233,7 @@ export default function Dashboard() {
             {projects.length === 0 && (
               <button
                 onClick={() => setShowNewProjectDialog(true)}
-                className="text-lavalog hover:underline"
+                className="text-brand-purple hover:underline"
               >
                 Create a project
               </button>

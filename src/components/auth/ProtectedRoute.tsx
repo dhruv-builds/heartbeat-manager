@@ -11,13 +11,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lavalog"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-purple"></div>
       </div>
     );
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

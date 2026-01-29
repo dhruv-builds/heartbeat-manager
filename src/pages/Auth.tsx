@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { GradientLogo } from '@/components/ui/GradientLogo';
 
 export default function Auth() {
   const { user, loading: authLoading } = useAuth();
@@ -21,75 +22,93 @@ export default function Auth() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lavalog"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-purple"></div>
       </div>
     );
   }
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
+
+  // Detect if running in Chrome extension context
+  const isExtension = typeof chrome !== 'undefined' && 
+                      typeof chrome.identity !== 'undefined' && 
+                      typeof chrome.identity.getRedirectURL === 'function';
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: chrome.identity.getRedirectURL(),
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data?.url) {
-        chrome.identity.launchWebAuthFlow(
-          {
-            url: data.url,
-            interactive: true,
+      if (isExtension) {
+        // Chrome extension flow
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: chrome.identity.getRedirectURL(),
+            skipBrowserRedirect: true,
           },
-          async (redirectUrl) => {
-            if (chrome.runtime.lastError) {
-              console.error('Auth flow error:', chrome.runtime.lastError);
-              toast({
-                title: 'Login cancelled',
-                description: 'Google sign-in was cancelled or failed.',
-                variant: 'destructive',
-              });
-              setGoogleLoading(false);
-              return;
-            }
+        });
 
-            if (redirectUrl) {
-              // Parse tokens from the redirect URL hash fragment
-              const hashParams = new URLSearchParams(redirectUrl.split('#')[1]);
-              const accessToken = hashParams.get('access_token');
-              const refreshToken = hashParams.get('refresh_token');
+        if (error) throw error;
 
-              if (accessToken && refreshToken) {
-                const { error: sessionError } = await supabase.auth.setSession({
-                  access_token: accessToken,
-                  refresh_token: refreshToken,
+        if (data?.url) {
+          chrome.identity.launchWebAuthFlow(
+            {
+              url: data.url,
+              interactive: true,
+            },
+            async (redirectUrl) => {
+              if (chrome.runtime.lastError) {
+                console.error('Auth flow error:', chrome.runtime.lastError);
+                toast({
+                  title: 'Login cancelled',
+                  description: 'Google sign-in was cancelled or failed.',
+                  variant: 'destructive',
                 });
+                setGoogleLoading(false);
+                return;
+              }
 
-                if (sessionError) {
-                  toast({
-                    title: 'Session error',
-                    description: sessionError.message,
-                    variant: 'destructive',
+              if (redirectUrl) {
+                // Parse tokens from the redirect URL hash fragment
+                const hashParams = new URLSearchParams(redirectUrl.split('#')[1]);
+                const accessToken = hashParams.get('access_token');
+                const refreshToken = hashParams.get('refresh_token');
+
+                if (accessToken && refreshToken) {
+                  const { error: sessionError } = await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
                   });
-                } else {
-                  toast({
-                    title: 'Welcome!',
-                    description: 'Successfully signed in with Google.',
-                  });
+
+                  if (sessionError) {
+                    toast({
+                      title: 'Session error',
+                      description: sessionError.message,
+                      variant: 'destructive',
+                    });
+                  } else {
+                    toast({
+                      title: 'Welcome!',
+                      description: 'Successfully signed in with Google.',
+                    });
+                  }
                 }
               }
+              setGoogleLoading(false);
             }
-            setGoogleLoading(false);
-          }
-        );
+          );
+        }
+      } else {
+        // Web browser flow - simple redirect
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        // Browser handles redirect automatically
       }
     } catch (error: any) {
       console.error('Google Auth Error:', error);
@@ -142,28 +161,20 @@ export default function Auth() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <img
-              src="./app-logo.png"
-              alt="LovaLog"
-              className="w-10 h-10 object-contain"
-            />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">LovaLog</h1>
-              <p className="text-xs text-muted-foreground">Lovable Backlog Manager</p>
-            </div>
-          </div>
-          <p className="text-muted-foreground">
-            {isLogin ? 'Sign in to your account' : 'Create a new account'}
-          </p>
+        {/* Logo Section */}
+        <div className="flex flex-col items-center justify-center mb-8">
+          <GradientLogo size="lg" />
         </div>
+        
+        <p className="text-center text-muted-foreground">
+          {isLogin ? 'Sign in to your account' : 'Create a new account'}
+        </p>
 
         {/* Google OAuth Button */}
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className="w-full border-border hover:border-brand-purple bg-transparent"
           onClick={handleGoogleLogin}
           disabled={loading || googleLoading}
         >
@@ -195,7 +206,7 @@ export default function Auth() {
         {/* Divider */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
@@ -215,6 +226,7 @@ export default function Auth() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading || googleLoading}
+              className="bg-secondary/50 border-border"
             />
           </div>
 
@@ -229,20 +241,25 @@ export default function Auth() {
               required
               minLength={6}
               disabled={loading || googleLoading}
+              className="bg-secondary/50 border-border"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading || googleLoading}>
+          <button 
+            type="submit" 
+            className="w-full gradient-button py-2.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            disabled={loading || googleLoading}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLogin ? 'Sign In' : 'Sign Up'}
-          </Button>
+          </button>
         </form>
 
         <div className="text-center">
           <button
             type="button"
             onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-lavalog hover:underline"
+            className="text-sm text-brand-purple hover:underline"
             disabled={loading || googleLoading}
           >
             {isLogin

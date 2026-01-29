@@ -15,7 +15,7 @@ const statusConfig: Record<FeatureStatus, { label: string; className: string }> 
   },
   'in-progress': {
     label: 'Next',
-    className: 'bg-lavalog/20 text-lavalog hover:bg-lavalog/30',
+    className: 'bg-brand-purple/20 text-brand-purple hover:bg-brand-purple/30',
   },
   'done': {
     label: 'Done',
