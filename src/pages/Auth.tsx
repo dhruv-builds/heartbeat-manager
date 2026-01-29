@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,9 +99,12 @@ export default function Auth() {
           );
         }
       } else {
-        // Web browser flow - use Lovable Cloud managed OAuth
-        const { error } = await lovable.auth.signInWithOAuth('google', {
-          redirect_uri: window.location.origin,
+        // Web browser flow - use direct Supabase OAuth
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
         });
         if (error) throw error;
       }
