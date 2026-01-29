@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +41,7 @@ export default function Auth() {
     setGoogleLoading(true);
     try {
       if (isExtension) {
-        // Chrome extension flow
+        // Chrome extension flow - use direct Supabase OAuth
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -70,7 +71,6 @@ export default function Auth() {
               }
 
               if (redirectUrl) {
-                // Parse tokens from the redirect URL hash fragment
                 const hashParams = new URLSearchParams(redirectUrl.split('#')[1]);
                 const accessToken = hashParams.get('access_token');
                 const refreshToken = hashParams.get('refresh_token');
@@ -100,15 +100,11 @@ export default function Auth() {
           );
         }
       } else {
-        // Web browser flow - simple redirect
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-          },
+        // Web browser flow - use Lovable Cloud managed OAuth
+        const { error } = await lovable.auth.signInWithOAuth('google', {
+          redirect_uri: window.location.origin,
         });
         if (error) throw error;
-        // Browser handles redirect automatically
       }
     } catch (error: any) {
       console.error('Google Auth Error:', error);
