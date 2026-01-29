@@ -41,9 +41,9 @@ export function FeatureItem({
           {...provided.draggableProps}
           className={cn(
             'group p-3 rounded-lg border transition-all',
-            'hover:border-lavalog/50',
+            'hover:border-brand-purple/50',
             isSelected
-              ? 'border-lavalog bg-lavalog/10'
+              ? 'border-brand-purple bg-brand-purple/10'
               : 'border-border bg-card',
             snapshot.isDragging && 'shadow-lg',
             isCompleted && 'opacity-60'
@@ -84,7 +84,7 @@ export function FeatureItem({
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-7 w-7 text-lavalog hover:text-lavalog hover:bg-lavalog/20"
+                  className="h-7 w-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     onInject();

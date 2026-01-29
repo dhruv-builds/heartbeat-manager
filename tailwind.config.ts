@@ -47,9 +47,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        lavalog: {
-          DEFAULT: "hsl(var(--lavalog))",
-          foreground: "hsl(var(--lavalog-foreground))",
+        brand: {
+          pink: "#FF6B9D",
+          purple: "#C44BFF",
+          orange: "#FF9F43",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",

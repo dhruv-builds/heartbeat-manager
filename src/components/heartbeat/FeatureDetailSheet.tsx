@@ -297,7 +297,7 @@ export function FeatureDetailSheet({
                       size="sm"
                       onClick={handleGeneratePrompt}
                       disabled={isGenerating || !localTitle.trim()}
-                      className="text-lavalog hover:text-lavalog/80 hover:bg-lavalog/10 h-7 px-2"
+                      className="text-brand-purple hover:text-brand-purple/80 hover:bg-brand-purple/10 h-7 px-2"
                     >
                       {isGenerating ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -374,7 +374,7 @@ Example:
                 <div className="flex gap-1">
                   {/* Primary action: Inject text only */}
                   <Button
-                    className="flex-1 bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base rounded-r-none"
+                    className="flex-1 gradient-button h-12 text-base rounded-r-none"
                     onClick={handleInject}
                     disabled={!localPrompt.trim()}
                   >
@@ -386,7 +386,7 @@ Example:
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        className="bg-heartbeat hover:bg-heartbeat/90 text-white h-12 px-3 rounded-l-none border-l border-white/20"
+                        className="gradient-button h-12 px-3 rounded-l-none border-l border-white/20"
                         disabled={!localPrompt.trim()}
                       >
                         <ChevronDown className="w-4 h-4" />
@@ -403,7 +403,7 @@ Example:
               ) : (
                 // Simple button when no image attached
                 <Button
-                  className="w-full bg-heartbeat hover:bg-heartbeat/90 text-white h-12 text-base"
+                  className="w-full gradient-button h-12 text-base"
                   onClick={handleInject}
                   disabled={!localPrompt.trim()}
                 >

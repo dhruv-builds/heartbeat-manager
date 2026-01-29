@@ -116,7 +116,7 @@ Example:
           )}
           <Button
             size="sm"
-            className="bg-lavalog hover:bg-lavalog/90 text-white"
+            className="gradient-button"
             onClick={() => {
               if (hasChanges) handleSave();
               onInject();
