@@ -13,7 +13,7 @@ import {
   Chrome,
   ExternalLink
 } from 'lucide-react';
-import heroMockup from '@/assets/hero-mockup.png';
+import heroCinematic from '@/assets/hero-cinematic.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -112,54 +112,63 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section - Split Layout */}
-      <section ref={heroRef} className="pt-32 lg:pt-40 pb-24 lg:pb-32 px-6 relative z-10">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left: Text Content */}
-            <div className="order-1">
-              <h1 className="text-5xl lg:text-7xl font-bold mb-6 leading-[1.1] tracking-tight">
-                Build better.
-                <br />
-                <span className="gradient-brand-text">Waste nothing.</span>
-              </h1>
-              
-              <p className="text-lg lg:text-xl text-muted-foreground max-w-md mb-10 leading-relaxed">
-                Your backlog sidekick for Lovable. Capture ideas, craft prompts, track credits—all from your browser.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row items-start gap-4">
-                <a
-                  href="https://chrome.google.com/webstore"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="gradient-button px-8 py-3.5 rounded-xl font-semibold text-base flex items-center gap-2.5"
-                >
-                  <Chrome size={20} />
-                  Get the Extension
-                </a>
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  onClick={() => navigate('/auth')}
-                  className="border-border hover:bg-accent rounded-xl h-[50px]"
-                >
-                  Go to Dashboard
-                  <ExternalLink size={16} className="ml-2" />
-                </Button>
-              </div>
+      {/* Hero Section - Cinematic Full-Width */}
+      <section ref={heroRef} className="relative min-h-[80vh] lg:min-h-[85vh] overflow-hidden">
+        {/* Desktop: Background Image with Gradient Overlay */}
+        <div className="hidden lg:block absolute inset-0">
+          <img 
+            src={heroCinematic} 
+            alt="LovaLog Chrome Extension" 
+            className="w-full h-full object-cover object-right"
+          />
+          {/* Gradient Overlay: solid dark left, transparent right */}
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
+        </div>
+        
+        {/* Text Content - positioned left */}
+        <div className="relative z-10 max-w-5xl mx-auto px-6 pt-32 lg:pt-40 pb-16 lg:pb-24">
+          <div className="max-w-xl">
+            <h1 className="text-5xl lg:text-7xl font-bold mb-6 leading-[1.1] tracking-tight">
+              Build better.
+              <br />
+              <span className="gradient-brand-text">Waste nothing.</span>
+            </h1>
+            
+            <p className="text-lg lg:text-xl text-muted-foreground max-w-md mb-10 leading-relaxed">
+              Your backlog sidekick for Lovable. Capture ideas, craft prompts, track credits—all from your browser.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-start gap-4">
+              <a
+                href="https://chrome.google.com/webstore"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="gradient-button px-8 py-3.5 rounded-xl font-semibold text-base flex items-center gap-2.5"
+              >
+                <Chrome size={20} />
+                Get the Extension
+              </a>
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={() => navigate('/auth')}
+                className="border-border hover:bg-accent rounded-xl h-[50px]"
+              >
+                Go to Dashboard
+                <ExternalLink size={16} className="ml-2" />
+              </Button>
             </div>
-
-            {/* Right: Hero Image */}
-            <div className="order-2 lg:order-2 relative">
-              <div className="relative drop-shadow-2xl">
-                <img 
-                  src={heroMockup} 
-                  alt="LovaLog Chrome Extension" 
-                  className="w-full max-w-lg mx-auto lg:max-w-none rounded-2xl rotate-2 hover:rotate-0 transition-transform duration-500"
-                />
-              </div>
-            </div>
+          </div>
+        </div>
+        
+        {/* Mobile: Image shown below text */}
+        <div className="lg:hidden px-6 pb-12">
+          <div className="relative drop-shadow-2xl">
+            <img 
+              src={heroCinematic} 
+              alt="LovaLog Chrome Extension" 
+              className="w-full rounded-2xl"
+            />
           </div>
         </div>
       </section>
