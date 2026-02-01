@@ -1,175 +1,172 @@
 
 
-## Landing Page Art Direction Redesign
+## Cinematic Hero Section Redesign
 
 ### Overview
-Transform the landing page from a standard SaaS grid layout into a more editorial, design-forward experience with stronger visual hierarchy, generous whitespace, and atmospheric background effects.
+Transform the hero from a side-by-side split layout into a full-width "cinematic" hero where the uploaded image serves as a background/positioned element with text overlaying the faded left portion.
 
 ---
 
-### Hero Section Redesign
+### Visual Design Concept
 
-**Layout Change: Side-by-Side Split**
-
-```
+```text
 Desktop (lg+):
-┌─────────────────────────────────────────────────────────┐
-│  Logo  |                                        Login   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│   [HEADLINE]                    ┌─────────────────┐     │
-│   Build better.                 │                 │     │
-│   Waste nothing.                │   Hero Image    │     │
-│                                 │   (Browser      │     │
-│   [SUBHEAD]                     │   Mockup)       │     │
-│   Your backlog sidekick...      │                 │     │
-│                                 │   drop-shadow   │     │
-│   [CTA BUTTONS]                 └─────────────────┘     │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|  [Nav: Logo]                                  [Login] [Get Ext]  |
++------------------------------------------------------------------+
+|                                                                  |
+|  +-----------------------+  +----------------------------------+ |
+|  |                       |  |                                  | |
+|  |   Build better.       |  |                                  | |
+|  |   Waste nothing.      |  |     [HERO IMAGE]                 | |
+|  |                       |  |     Browser mockup with          | |
+|  |   Your backlog        |  |     LovaLog extension panel      | |
+|  |   sidekick for...     |  |                                  | |
+|  |                       |  |     (Product shot on right,      | |
+|  |   [CTA Buttons]       |  |      faded on left)              | |
+|  |                       |  |                                  | |
+|  +-----------------------+  +----------------------------------+ |
+|   ^                          ^                                   |
+|   |                          |                                   |
+|   Dark gradient overlay      Image positioned right              |
+|   (left-to-transparent)      to allow text readability           |
+|                                                                  |
++------------------------------------------------------------------+
 
 Mobile:
-┌─────────────────────┐
-│   [HEADLINE]        │
-│   [SUBHEAD]         │
-│   [BUTTONS]         │
-│                     │
-│   ┌───────────────┐ │
-│   │  Hero Image   │ │
-│   └───────────────┘ │
-└─────────────────────┘
++-------------------------+
+|  [Nav]                  |
++-------------------------+
+|                         |
+|  Build better.          |
+|  Waste nothing.         |
+|                         |
+|  Your backlog sidekick  |
+|                         |
+|  [CTA Buttons]          |
+|                         |
++-------------------------+
+|                         |
+|  +-------------------+  |
+|  |   Hero Image      |  |
+|  |   (stacked below) |  |
+|  +-------------------+  |
+|                         |
++-------------------------+
 ```
 
-**Hero Image:**
-- Copy `user-uploads://Untitled_design_2.png` to `src/assets/hero-mockup.png`
+---
+
+### Implementation Details
+
+**1. Copy Asset to Project**
+- Source: `user-uploads://Lovalog_-_frame.png`
+- Destination: `src/assets/hero-cinematic.png`
 - Import as ES6 module for proper bundling
-- Apply `drop-shadow-2xl` to the image container
-- Slightly rotate image (2-3 degrees) for visual interest
 
----
+**2. Hero Section Structure (Desktop)**
 
-### Copy Rewrite: Product/Designer Tone
+The hero will use a relative container with:
+- Full-width image positioned on the right
+- CSS gradient overlay from left (`#0D0D0D` at 0-40%) to transparent (100%)
+- Text content absolutely positioned on the left side
+- Minimum height to ensure impact (e.g., `min-h-[80vh]`)
 
-| Section | Before (Corporate SaaS) | After (Designer Tone) |
-|---------|------------------------|----------------------|
-| **Headline** | "Build Better Lovable Apps. Spend Fewer Credits." | "Build better. Waste nothing." |
-| **Subhead** | "The all-in-one Chrome Extension for backlog management, AI prompt engineering, and smart credit monitoring." | "Your backlog sidekick for Lovable. Capture ideas, craft prompts, track credits—all from your browser." |
-| **Pain Section Title** | "Stop Wasting Your Lovable Credits" | "The problems we fix" |
-| **Pain 1** | "Bad Prompts Burn Budget" | "Vague prompts, wasted credits" |
-| **Pain 2** | "Context Switching Kills Flow" | "Ideas lost between projects" |
-| **Pain 3** | "Use It or Lose It" | "Credits that expire at midnight" |
-| **Features Title** | "Everything You Need to Ship Faster" | "What's inside" |
-| **CTA Title** | "Ready to Build Better?" | "Start building smarter" |
-| **CTA Text** | "Join thousands of Lovable builders..." | "It's free. It's fast. It works." |
+```text
+<section className="relative min-h-[80vh] overflow-hidden">
+  {/* Background Image - positioned right */}
+  <div className="absolute inset-0">
+    <img 
+      src={heroCinematic} 
+      className="w-full h-full object-cover object-right"
+    />
+    {/* Gradient Overlay: dark left, transparent right */}
+    <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
+  </div>
+  
+  {/* Text Content - left positioned */}
+  <div className="relative z-10 max-w-5xl mx-auto px-6 pt-40 pb-24">
+    <div className="max-w-xl">
+      <h1>Build better. Waste nothing.</h1>
+      <p>Your backlog sidekick...</p>
+      <CTAs />
+    </div>
+  </div>
+</section>
+```
 
----
+**3. Gradient Overlay Specifications**
+- Direction: `bg-gradient-to-r` (left to right)
+- Stops:
+  - `from-background` (0%): Solid `#0D0D0D`
+  - `via-background/80` (~50%): 80% opacity dark
+  - `to-transparent` (100%): Fully transparent
 
-### Visual Atmosphere: Grain + Gradient Blobs
+This ensures text on the left has a solid dark background while the product shot on the right remains visible.
 
-**New CSS Utilities to Add:**
-
-1. **Noise/Grain Overlay**
-   ```css
-   .noise-overlay {
-     position: fixed;
-     top: 0;
-     left: 0;
-     width: 100%;
-     height: 100%;
-     pointer-events: none;
-     opacity: 0.03;
-     background-image: url("data:image/svg+xml,..."); /* noise pattern */
-     z-index: 50;
-   }
-   ```
-
-2. **Blurred Gradient Blobs (Decorative)**
-   ```css
-   .gradient-blob {
-     position: absolute;
-     border-radius: 50%;
-     filter: blur(120px);
-     opacity: 0.15;
-   }
-   ```
-
-**Placement:**
-- Pink blob: Top-left of hero, offset behind headline
-- Purple blob: Center-right, behind hero image
-- Orange blob: Bottom sections, subtle accent
-
----
-
-### Layout Simplification
-
-**Remove Card Grids, Add Breathing Room:**
-
-| Section | Before | After |
-|---------|--------|-------|
-| Pain Points | 3-column card grid | Vertical stack with large icons, generous spacing (py-24 → py-32) |
-| Features | 2x2 card grid | Alternating left-right layout OR simple vertical list with dividers |
-| Section spacing | py-20 | py-28 to py-32 |
-| Max content width | max-w-6xl | max-w-5xl (tighter, more focused) |
-
----
-
-### Typography Hierarchy Enhancement
-
-**Changes:**
-- Hero headline: `text-5xl lg:text-7xl` with tighter `leading-[1.1]`
-- Section headlines: `text-3xl lg:text-5xl`
-- Body text: Increase line-height for readability
-- Pain point titles: Larger, gradient text for impact
-- Feature titles: `text-2xl font-semibold`
+**4. Mobile Layout**
+- Stack text on top, image below
+- Image shown in natural aspect ratio (not as background)
+- No gradient overlay needed on mobile since they're stacked
 
 ---
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/assets/hero-mockup.png` | **Create** - Copy uploaded image here |
-| `src/pages/LandingPage.tsx` | Rewrite hero layout, update copy, restructure sections, add gradient blobs |
-| `src/index.css` | Add `.noise-overlay`, `.gradient-blob` utilities |
+| File | Action | Description |
+|------|--------|-------------|
+| `src/assets/hero-cinematic.png` | Create | Copy uploaded image |
+| `src/pages/LandingPage.tsx` | Modify | Replace hero section with cinematic layout |
 
 ---
 
-### Technical Details
+### Technical Changes in LandingPage.tsx
 
-**Hero Image Implementation:**
+**Import Change:**
 ```typescript
+// Replace this:
 import heroMockup from '@/assets/hero-mockup.png';
 
-// In JSX:
-<div className="relative drop-shadow-2xl">
-  <img 
-    src={heroMockup} 
-    alt="LovaLog Chrome Extension" 
-    className="w-full max-w-lg rounded-2xl rotate-2"
-  />
-</div>
+// With this:
+import heroCinematic from '@/assets/hero-cinematic.png';
 ```
 
-**Gradient Blob Implementation:**
-```tsx
-{/* Decorative blobs */}
-<div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-pink rounded-full filter blur-[120px] opacity-15" />
-<div className="absolute top-1/2 -right-48 w-[500px] h-[500px] bg-brand-purple rounded-full filter blur-[150px] opacity-10" />
+**Hero Section Replacement (lines 115-165):**
+
+Desktop structure:
+- `relative min-h-[80vh]` container
+- Absolutely positioned image with `object-cover object-right`
+- Gradient overlay div: `bg-gradient-to-r from-background via-background/80 to-transparent`
+- Text content with `relative z-10` to sit above the image
+- Text constrained to `max-w-xl` on the left
+
+Mobile structure:
+- Use Tailwind responsive classes
+- `lg:absolute` for image positioning on desktop
+- `lg:hidden` / `hidden lg:block` for conditional display
+- Stack text first, then show image below on mobile
+
+---
+
+### CSS Gradient Specification
+
+The gradient creates a smooth transition:
+```text
+0%   [#0D0D0D] -----> 40% [#0D0D0D/80] -----> 100% [transparent]
+     Solid dark         Semi-transparent        Invisible
+     (text area)        (blend zone)            (product visible)
 ```
 
-**Background:**
-- Keep `#0D0D0D` (already set via `--background: 0 0% 5%` in dark mode)
-- Remove `bg-card/50` alternating sections for cleaner look
-- Use subtle border separators instead
+This matches the image's natural fade on the left side and ensures perfect blending.
 
 ---
 
 ### Summary
 
-1. Copy hero image to `src/assets/hero-mockup.png`
-2. Rewrite `LandingPage.tsx` with split hero layout (text left, image right)
-3. Update all copy to designer/product tone
-4. Add atmospheric gradient blobs and noise texture
-5. Simplify card grids into cleaner vertical layouts
-6. Increase whitespace and typography scale
+1. Copy `user-uploads://Lovalog_-_frame.png` to `src/assets/hero-cinematic.png`
+2. Restructure hero section to use full-width cinematic layout
+3. Position image on right with `object-right` alignment
+4. Add left-to-right gradient overlay for text readability
+5. Keep text (headline, subhead, CTAs) on the left side
+6. On mobile: stack text above image vertically
 
