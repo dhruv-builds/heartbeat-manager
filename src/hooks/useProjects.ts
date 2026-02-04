@@ -51,6 +51,8 @@ export function useProjects() {
         id: p.id,
         user_id: p.user_id,
         name: p.name,
+        lovable_project_id: p.lovable_project_id || null,
+        lovable_project_url: p.lovable_project_url || null,
         created_at: p.created_at,
         updated_at: p.updated_at,
         features: featuresData
@@ -390,6 +392,43 @@ export function useProjects() {
     return projects.find(p => p.name.toLowerCase() === name.toLowerCase()) || null;
   }, [projects]);
 
+  const findProjectByLovableId = useCallback((lovableId: string): Project | null => {
+    return projects.find(p => p.lovable_project_id === lovableId) || null;
+  }, [projects]);
+
+  const linkProject = useCallback(async (
+    projectId: string, 
+    lovableProjectId: string
+  ): Promise<boolean> => {
+    // Always store canonical URL
+    const canonicalUrl = `https://lovable.dev/projects/${lovableProjectId}`;
+    
+    try {
+      const { error } = await (supabase as any)
+        .from('projects')
+        .update({ 
+          lovable_project_id: lovableProjectId,
+          lovable_project_url: canonicalUrl
+        })
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      // Optimistic update
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, lovable_project_id: lovableProjectId, lovable_project_url: canonicalUrl }
+            : p
+        )
+      );
+      return true;
+    } catch (error) {
+      console.error('Error linking project:', error);
+      return false;
+    }
+  }, []);
+
   return {
     projects,
     activeProject,
@@ -406,6 +445,8 @@ export function useProjects() {
     exportData,
     importData,
     findProjectByName,
+    findProjectByLovableId,
+    linkProject,
     refetch: fetchProjects,
   };
 }

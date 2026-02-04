@@ -12,12 +12,19 @@ import {
 import { Project } from '@/types/heartbeat';
 import { cn } from '@/lib/utils';
 
+interface InlineAction {
+  type: 'load' | 'link';
+  onAction: () => void;
+  disabled?: boolean;
+}
+
 interface ProjectSelectorProps {
   projects: Project[];
   activeProject: Project | null;
   onSelectProject: (projectId: string) => void;
   onRenameProject: (projectId: string, newName: string) => void;
   onDeleteProject: (projectId: string) => void;
+  inlineAction?: InlineAction | null;
 }
 
 export function ProjectSelector({
@@ -26,6 +33,7 @@ export function ProjectSelector({
   onSelectProject,
   onRenameProject,
   onDeleteProject,
+  inlineAction,
 }: ProjectSelectorProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -51,19 +59,20 @@ export function ProjectSelector({
 
   return (
     <div className="px-4 py-3 border-b border-border">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="w-full justify-between bg-background hover:bg-muted"
-          >
-            <span className="truncate">
-              {activeProject?.name || 'Select Project'}
-            </span>
-            <ChevronDown className="w-4 h-4 ml-2 shrink-0" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[calc(100vw-2rem)] max-w-[300px]" align="start">
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="flex-1 min-w-0 justify-between bg-background hover:bg-muted"
+            >
+              <span className="truncate">
+                {activeProject?.name || 'Select Project'}
+              </span>
+              <ChevronDown className="w-4 h-4 ml-2 shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[calc(100vw-2rem)] max-w-[300px]" align="start">
           {projects.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
               No projects yet. Create one!
@@ -141,8 +150,24 @@ export function ProjectSelector({
               </DropdownMenuItem>
             ))
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        {inlineAction && (
+          <Button
+            size="sm"
+            variant={inlineAction.type === 'load' ? 'default' : 'secondary'}
+            className="shrink-0 h-9 px-3 font-medium"
+            onClick={inlineAction.onAction}
+            disabled={inlineAction.disabled}
+            title={inlineAction.type === 'load' 
+              ? 'Load selected project in this tab' 
+              : 'Link selected project to this Lovable tab'}
+          >
+            {inlineAction.type === 'load' ? 'Load' : 'Link'}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

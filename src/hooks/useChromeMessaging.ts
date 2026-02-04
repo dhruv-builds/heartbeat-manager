@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 
 interface PageInfo {
   isLovable: boolean;
@@ -16,7 +16,7 @@ declare const chrome: {
     };
   };
   tabs?: {
-    query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<Array<{ id?: number }>>;
+    query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<Array<{ id?: number; url?: string }>>;
     sendMessage: (tabId: number, message: { type: string; text?: string }) => Promise<{ 
       success?: boolean; 
       isLovable?: boolean; 
@@ -25,6 +25,15 @@ declare const chrome: {
       error?: string;
       content?: string | null;
     }>;
+    update: (tabId: number, updateProperties: { url?: string }) => Promise<unknown>;
+    onActivated?: {
+      addListener: (callback: (activeInfo: { tabId: number; windowId: number }) => void) => void;
+      removeListener: (callback: (activeInfo: { tabId: number; windowId: number }) => void) => void;
+    };
+    onUpdated?: {
+      addListener: (callback: (tabId: number, changeInfo: { url?: string }, tab: { active?: boolean }) => void) => void;
+      removeListener: (callback: (tabId: number, changeInfo: { url?: string }, tab: { active?: boolean }) => void) => void;
+    };
   };
   scripting?: {
     executeScript: (options: {
@@ -39,9 +48,23 @@ function isChromeExtension(): boolean {
   return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
 }
 
+// Parse Lovable project UUID from URL (corrected regex)
+function parseLovableProjectId(url: string): string | null {
+  const match = url.match(/^https:\/\/lovable\.dev\/projects\/([0-9a-fA-F-]{36})(?:[/?#].*)?$/);
+  return match ? match[1] : null;
+}
+
+// Check if URL is restricted (non-HTTP/HTTPS)
+function isRestrictedUrl(url: string | null): boolean {
+  if (!url) return true;
+  return !url.startsWith('http://') && !url.startsWith('https://');
+}
+
 export function useChromeMessaging() {
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [isExtension] = useState(isChromeExtension);
+  const [activeTabUrl, setActiveTabUrl] = useState<string | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkCurrentPage = useCallback(async (): Promise<PageInfo | null> => {
     if (!isExtension) {
@@ -188,6 +211,87 @@ export function useChromeMessaging() {
     }
   }, []);
 
+  // Get active tab URL directly
+  const getActiveTabUrl = useCallback(async (): Promise<string | null> => {
+    if (!isExtension) return null;
+    try {
+      const tabs = await chrome.tabs!.query({ active: true, currentWindow: true });
+      return tabs[0]?.url || null;
+    } catch {
+      return null;
+    }
+  }, [isExtension]);
+
+  // Navigate active tab to a URL
+  const navigateActiveTab = useCallback(async (url: string): Promise<boolean> => {
+    if (!isExtension) return false;
+    try {
+      const tabs = await chrome.tabs!.query({ active: true, currentWindow: true });
+      const tab = tabs[0];
+      if (!tab?.id) return false;
+      
+      // Check for restricted URLs
+      if (isRestrictedUrl(tab.url || null)) {
+        return false;
+      }
+      
+      await chrome.tabs!.update(tab.id, { url });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [isExtension]);
+
+  // Tab URL tracking with debounce and cleanup
+  useEffect(() => {
+    if (!isExtension) return;
+
+    const updateActiveTabUrl = async () => {
+      const url = await getActiveTabUrl();
+      setActiveTabUrl(url);
+    };
+
+    const debouncedUpdate = () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(updateActiveTabUrl, 200);
+    };
+
+    // Initial fetch
+    updateActiveTabUrl();
+
+    // Listen for tab activation changes
+    const handleTabActivated = () => debouncedUpdate();
+    
+    // Listen for URL updates within tabs
+    const handleTabUpdated = (
+      _tabId: number, 
+      changeInfo: { url?: string }, 
+      tab: { active?: boolean }
+    ) => {
+      if (changeInfo.url && tab.active) {
+        debouncedUpdate();
+      }
+    };
+
+    chrome.tabs?.onActivated?.addListener(handleTabActivated);
+    chrome.tabs?.onUpdated?.addListener(handleTabUpdated);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      chrome.tabs?.onActivated?.removeListener(handleTabActivated);
+      chrome.tabs?.onUpdated?.removeListener(handleTabUpdated);
+    };
+  }, [isExtension, getActiveTabUrl]);
+
+  // Derived state
+  const detectedLovableId = activeTabUrl ? parseLovableProjectId(activeTabUrl) : null;
+  const isOnLovableHost = activeTabUrl?.startsWith('https://lovable.dev/') || false;
+  const isRestrictedTab = isRestrictedUrl(activeTabUrl);
+
   return {
     isExtension,
     pageInfo,
@@ -195,5 +299,10 @@ export function useChromeMessaging() {
     injectPrompt,
     scrapePageContent,
     copyImageToClipboard,
+    activeTabUrl,
+    detectedLovableId,
+    isOnLovableHost,
+    isRestrictedTab,
+    navigateActiveTab,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import { useChromeMessaging } from '@/hooks/useChromeMessaging';
 import { Header } from '@/components/heartbeat/Header';
@@ -26,9 +26,20 @@ export default function Dashboard() {
     exportData,
     importData,
     findProjectByName,
+    findProjectByLovableId,
+    linkProject,
   } = useProjects();
 
-  const { isExtension, pageInfo, checkCurrentPage, injectPrompt } = useChromeMessaging();
+  const { 
+    isExtension, 
+    pageInfo, 
+    checkCurrentPage, 
+    injectPrompt,
+    detectedLovableId,
+    isOnLovableHost,
+    isRestrictedTab,
+    navigateActiveTab,
+  } = useChromeMessaging();
   const { toast } = useToast();
 
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
@@ -37,11 +48,21 @@ export default function Dashboard() {
   const [suggestedProjectName, setSuggestedProjectName] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Auto-detect Lovable project on initial load and when pageInfo changes
+  // Auto-detect Lovable project on initial load and when tab changes
   useEffect(() => {
     // Only run after projects are loaded
     if (loading) return;
     
+    // Check for lovable_project_id match first (linked projects)
+    if (detectedLovableId) {
+      const matchByLovableId = findProjectByLovableId(detectedLovableId);
+      if (matchByLovableId) {
+        setActiveProject(matchByLovableId.id);
+        return;
+      }
+    }
+    
+    // Fallback to existing name-based matching (pageInfo.projectName)
     if (pageInfo?.isLovable && pageInfo.projectName) {
       const existingProject = findProjectByName(pageInfo.projectName);
       if (existingProject) {
@@ -51,7 +72,80 @@ export default function Dashboard() {
         setShowNewProjectDialog(true);
       }
     }
-  }, [pageInfo, findProjectByName, setActiveProject, loading]);
+  }, [detectedLovableId, pageInfo, findProjectByLovableId, findProjectByName, setActiveProject, loading]);
+
+  // Compute inline action state for extension
+  const selectedLovableId = activeProject?.lovable_project_id || null;
+
+  const handleLoadProject = useCallback(async () => {
+    if (!selectedLovableId) return;
+    
+    const url = `https://lovable.dev/projects/${selectedLovableId}`;
+    
+    // Confirm if not already on Lovable
+    if (!isOnLovableHost) {
+      const confirmed = window.confirm('This will replace the current page. Continue?');
+      if (!confirmed) return;
+    }
+    
+    const success = await navigateActiveTab(url);
+    if (!success) {
+      toast({
+        title: 'Cannot navigate',
+        description: 'This tab cannot be navigated.',
+        variant: 'destructive',
+      });
+    }
+  }, [selectedLovableId, isOnLovableHost, navigateActiveTab, toast]);
+
+  const handleLinkProject = useCallback(async () => {
+    if (!activeProject || !detectedLovableId) return;
+    
+    const success = await linkProject(activeProject.id, detectedLovableId);
+    
+    if (success) {
+      toast({
+        title: 'Project linked!',
+        description: `"${activeProject.name}" is now linked to this Lovable project.`,
+      });
+    } else {
+      toast({
+        title: 'Link failed',
+        description: 'Could not save the link. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }, [activeProject, detectedLovableId, linkProject, toast]);
+
+  const inlineAction = useMemo(() => {
+    if (!isExtension) return null;
+    
+    // MATCHED: no button
+    if (selectedLovableId && selectedLovableId === detectedLovableId) {
+      return null;
+    }
+    
+    // MISMATCH: show Load
+    if (selectedLovableId && selectedLovableId !== detectedLovableId) {
+      return {
+        type: 'load' as const,
+        onAction: handleLoadProject,
+        disabled: isRestrictedTab,
+      };
+    }
+    
+    // UNLINKED + on Lovable: show Link
+    if (!selectedLovableId && detectedLovableId) {
+      return {
+        type: 'link' as const,
+        onAction: handleLinkProject,
+        disabled: false,
+      };
+    }
+    
+    // UNLINKED + not on Lovable: no button
+    return null;
+  }, [isExtension, selectedLovableId, detectedLovableId, isRestrictedTab, handleLoadProject, handleLinkProject]);
 
   const selectedFeature = activeProject?.features.find(f => f.id === selectedFeatureId) || null;
 
@@ -186,6 +280,7 @@ export default function Dashboard() {
         onSelectProject={setActiveProject}
         onRenameProject={(id, name) => updateProject(id, { name })}
         onDeleteProject={deleteProject}
+        inlineAction={inlineAction}
       />
 
       {activeProject ? (

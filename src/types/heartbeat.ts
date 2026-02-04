@@ -16,6 +16,8 @@ export interface Project {
   id: string;
   user_id?: string;
   name: string;
+  lovable_project_id?: string | null;
+  lovable_project_url?: string | null;
   features: Feature[];
   created_at: string;
   updated_at: string;
@@ -36,6 +38,8 @@ export interface DbProject {
   id: string;
   user_id: string;
   name: string;
+  lovable_project_id?: string | null;
+  lovable_project_url?: string | null;
   created_at: string;
   updated_at: string;
 }
