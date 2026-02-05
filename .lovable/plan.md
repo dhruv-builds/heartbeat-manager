@@ -1,144 +1,270 @@
 
 
-## Extension-First Authentication Flow
+## Task Sequencing + Website Extension-Only Controls
 
 ### Overview
 
-Modify the extension entry point to enforce authentication before rendering any content. When running as a Chrome extension, unauthenticated users will see the login page immediately (matching the attached screenshot design). The web app will continue showing the landing page for guests.
+Implement two updates:
+1. **Task Sequencing**: Consistent, dynamic sorting of features on both website and extension
+2. **Website Controls**: Hide extension-only UI (Free Credits, Inject buttons) on the website
 
 ---
 
-### Current vs. Proposed Behavior
+### A) Task Sequencing
 
-| Context | Unauthenticated (Current) | Unauthenticated (Proposed) |
-|---------|---------------------------|----------------------------|
-| **Extension** | Shows LandingPage | Shows Auth page directly |
-| **Web App** | Shows LandingPage | Shows LandingPage (unchanged) |
+#### Status Value Migration
 
----
-
-### Solution Approach
-
-Modify `RootRoute` in `src/App.tsx` to detect the extension context and render the `Auth` component directly instead of `LandingPage`.
-
----
-
-### Implementation Details
-
-**1. Update `src/App.tsx`**
-
-Modify the `RootRoute` component to check if running in extension context:
+Change the status type from `'in-progress'` to `'next'`:
 
 ```typescript
-import { useChromeMessaging } from '@/hooks/useChromeMessaging';
+// src/types/heartbeat.ts
+export type FeatureStatus = 'backlog' | 'next' | 'done';  // was 'in-progress'
+```
 
-function RootRoute() {
-  const { user, loading } = useAuth();
-  const { isExtension } = useChromeMessaging();
-  
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-purple"></div>
-      </div>
-    );
-  }
-  
-  // Authenticated users go to dashboard
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Extension: show auth page directly (no landing page)
-  if (isExtension) {
-    return <Auth />;
-  }
-  
-  // Web: show landing page for guests
-  return <LandingPage />;
+**Note**: The UI already shows "Next" for 'in-progress' - this just aligns the data model.
+
+#### Shared Sorting Utilities
+
+Create a new file `src/lib/featureSorting.ts` with pure functions:
+
+```typescript
+import { Feature } from '@/types/heartbeat';
+
+// Status priority for active section
+const STATUS_PRIORITY: Record<string, number> = {
+  'next': 0,
+  'in-progress': 0,  // Backwards compatibility
+  'backlog': 1,
+};
+
+// Filter functions
+export function getActiveFeatures(features: Feature[]): Feature[] {
+  return features.filter(f => f.status !== 'done');
+}
+
+export function getCompletedFeatures(features: Feature[]): Feature[] {
+  return features.filter(f => f.status === 'done');
+}
+
+// Sorting functions
+export function sortActiveFeatures(features: Feature[]): Feature[] {
+  return [...features].sort((a, b) => {
+    // 1. Status priority: 'next' first, 'backlog' second
+    const statusDiff = (STATUS_PRIORITY[a.status] ?? 1) - (STATUS_PRIORITY[b.status] ?? 1);
+    if (statusDiff !== 0) return statusDiff;
+    
+    // 2. Manual order ascending
+    const orderDiff = a.order - b.order;
+    if (orderDiff !== 0) return orderDiff;
+    
+    // 3. Updated at DESC (most recent first)
+    const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    if (updatedDiff !== 0) return updatedDiff;
+    
+    // 4. Created at ASC (oldest first)
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+}
+
+export function sortCompletedFeatures(features: Feature[]): Feature[] {
+  return [...features].sort((a, b) => {
+    // 1. Updated at DESC (most recently completed first)
+    const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    if (updatedDiff !== 0) return updatedDiff;
+    
+    // 2. Created at DESC (tie-breaker)
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 }
 ```
 
-**Key Points:**
-- Extension users see `Auth` component inline (no navigation to `/auth`)
-- Web users continue to see `LandingPage`
-- Once authenticated, both contexts redirect to `/dashboard`
+#### Update FeatureList.tsx
 
----
-
-### Auth Persistence (Already Implemented)
-
-The current Supabase client configuration already handles persistence:
+Replace current sorting with memoized calls to shared utilities:
 
 ```typescript
-// src/integrations/supabase/client.ts
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    storage: localStorage,        // Persists to localStorage
-    persistSession: true,         // Session survives reloads
-    autoRefreshToken: true,       // Tokens refresh automatically
-  }
-});
+import { useMemo } from 'react';
+import { 
+  getActiveFeatures, 
+  getCompletedFeatures, 
+  sortActiveFeatures, 
+  sortCompletedFeatures 
+} from '@/lib/featureSorting';
+
+// Inside component:
+const activeTasks = useMemo(
+  () => sortActiveFeatures(getActiveFeatures(features)),
+  [features]
+);
+
+const completedTasks = useMemo(
+  () => sortCompletedFeatures(getCompletedFeatures(features)),
+  [features]
+);
+
+// Remove old sorting: const sortedFeatures = [...features].sort((a, b) => a.order - b.order);
 ```
 
-This ensures:
-- Auth state persists across extension reloads
-- Tokens are automatically refreshed
-- Extension popup remembers the user session
+#### Update StatusBadge.tsx
+
+Change 'in-progress' to 'next' in config and cycle logic:
+
+```typescript
+const statusConfig: Record<FeatureStatus, { label: string; className: string }> = {
+  'backlog': {
+    label: 'Backlog',
+    className: 'bg-muted text-muted-foreground hover:bg-muted/80',
+  },
+  'next': {  // Changed from 'in-progress'
+    label: 'Next',
+    className: 'bg-brand-purple/20 text-brand-purple hover:bg-brand-purple/30',
+  },
+  'done': {
+    label: 'Done',
+    className: 'bg-green-500/20 text-green-400 hover:bg-green-500/30',
+  },
+};
+
+export function getNextStatus(current: FeatureStatus): FeatureStatus {
+  const order: FeatureStatus[] = ['backlog', 'next', 'done'];  // Changed from 'in-progress'
+  const currentIndex = order.indexOf(current);
+  return order[(currentIndex + 1) % order.length];
+}
+```
 
 ---
 
-### Visual Result
+### B) Website - Hide Extension-Only Controls
 
-**Extension (unauthenticated):**
-```text
-+------------------------------------------+
-|               [LovaLog Logo]              |
-|         Lovable Backlog Manager           |
-|                                           |
-|        Sign in to your account            |
-|                                           |
-|   [G] Continue with Google                |
-|                                           |
-|   -------- OR CONTINUE WITH EMAIL ------  |
-|                                           |
-|   Email                                   |
-|   [you@example.com                    ]   |
-|                                           |
-|   Password                                |
-|   [••••••••                           ]   |
-|                                           |
-|   [=========== Sign In ===========]       |
-|                                           |
-|   Don't have an account? Sign up          |
-+------------------------------------------+
+#### Hide CreditsBadge on Website
+
+In `Dashboard.tsx`, conditionally render CreditsBadge:
+
+```tsx
+{/* Credits + Project Selector Row */}
+<div className="flex items-center justify-between px-4 py-2 border-b border-border">
+  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+    Project
+  </span>
+  {isExtension && <CreditsBadge />}
+</div>
 ```
 
-This matches the attached screenshot design exactly.
+#### Hide Inject Buttons
+
+**Approach**: Pass `isExtension` to FeatureList, which passes it to FeatureItem and FeatureDetailSheet.
+
+**FeatureList.tsx** - Add prop:
+
+```typescript
+interface FeatureListProps {
+  // ... existing props
+  isExtension?: boolean;  // NEW
+}
+
+// Pass to FeatureItem:
+<FeatureItem
+  // ... existing props
+  showInjectButton={isExtension}
+/>
+```
+
+**FeatureItem.tsx** - Conditionally render inject button:
+
+```typescript
+interface FeatureItemProps {
+  // ... existing props
+  showInjectButton?: boolean;  // NEW
+}
+
+// In render, wrap inject button:
+{showInjectButton && (
+  <Button
+    size="icon"
+    variant="ghost"
+    className="h-7 w-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
+    onClick={(e: React.MouseEvent) => {
+      e.stopPropagation();
+      onInject();
+    }}
+    title="Inject Prompt"
+    disabled={!feature.prompt}
+  >
+    <Zap className="w-4 h-4" />
+  </Button>
+)}
+```
+
+**FeatureDetailSheet.tsx** - Conditionally render inject section:
+
+```typescript
+interface FeatureDetailSheetProps {
+  // ... existing props
+  isExtension?: boolean;  // NEW
+}
+
+// In render, wrap entire inject button section:
+{isExtension && (
+  <div className="pt-4 border-t border-border">
+    {/* existing inject button(s) */}
+  </div>
+)}
+
+// Optional: Show subtle CTA on website
+{!isExtension && (
+  <div className="pt-4 border-t border-border text-center">
+    <p className="text-xs text-muted-foreground">
+      Install the extension to inject prompts
+    </p>
+  </div>
+)}
+```
+
+**Dashboard.tsx** - Pass isExtension to components:
+
+```tsx
+<FeatureList
+  // ... existing props
+  isExtension={isExtension}
+/>
+
+<FeatureDetailSheet
+  // ... existing props
+  isExtension={isExtension}
+/>
+```
 
 ---
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/App.tsx` | Import `useChromeMessaging`, modify `RootRoute` to render `Auth` directly for extension context |
+| File | Changes |
+|------|---------|
+| `src/types/heartbeat.ts` | Change `'in-progress'` to `'next'` in FeatureStatus |
+| `src/lib/featureSorting.ts` | **NEW** - Shared sorting utilities |
+| `src/components/heartbeat/FeatureList.tsx` | Use memoized sorting, pass `isExtension` |
+| `src/components/heartbeat/FeatureItem.tsx` | Add `showInjectButton` prop |
+| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add `isExtension` prop, hide inject UI |
+| `src/components/heartbeat/StatusBadge.tsx` | Update status config and cycle |
+| `src/pages/Dashboard.tsx` | Conditionally render CreditsBadge, pass isExtension |
 
 ---
 
-### Why This Works
+### Behavioral Summary
 
-1. **No routing change needed**: `RootRoute` renders the `Auth` component inline when in extension context
-2. **Auth persistence**: Supabase's `localStorage` + `persistSession: true` ensures sessions survive extension popup closes/reopens
-3. **Clean separation**: Web app behavior is completely unchanged
-4. **Design match**: Uses the existing `Auth` component which already matches the screenshot design
+| Behavior | Extension | Website |
+|----------|-----------|---------|
+| **Active section sorting** | 'next' first, then 'backlog', by order | Same |
+| **Completed section sorting** | updated_at DESC | Same |
+| **Status change moves task** | Yes, immediate re-render | Same |
+| **Free Credits badge** | Visible | Hidden |
+| **Quick inject button (card)** | Visible | Hidden |
+| **Main inject button (sheet)** | Visible | Hidden (shows CTA) |
+| **All other CRUD** | Works | Works |
 
 ---
 
-### Summary
+### Backwards Compatibility
 
-1. Modify `RootRoute` in `App.tsx` to detect extension context via `useChromeMessaging`
-2. Render `Auth` component directly for unauthenticated extension users
-3. Keep web app showing `LandingPage` for guests
-4. No changes needed for auth persistence (already configured correctly)
+The sorting function includes `'in-progress': 0` in the priority map to handle any existing database records that haven't been migrated yet. These will sort alongside 'next' correctly.
 
