@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useChromeMessaging } from "@/hooks/useChromeMessaging";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import LandingPage from "./pages/LandingPage";
@@ -12,9 +13,10 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Smart root route component - shows landing for guests, redirects to dashboard for authenticated
+// Smart root route component - extension shows auth directly, web shows landing for guests
 function RootRoute() {
   const { user, loading } = useAuth();
+  const { isExtension } = useChromeMessaging();
   
   if (loading) {
     return (
@@ -24,7 +26,18 @@ function RootRoute() {
     );
   }
   
-  return user ? <Navigate to="/dashboard" replace /> : <LandingPage />;
+  // Authenticated users go to dashboard
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  // Extension: show auth page directly (no landing page)
+  if (isExtension) {
+    return <Auth />;
+  }
+  
+  // Web: show landing page for guests
+  return <LandingPage />;
 }
 
 const App = () => (
