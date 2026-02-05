@@ -28,6 +28,7 @@ interface FeatureDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onUpdate: (updates: Partial<Feature>) => void;
   onInject: () => Promise<boolean>;
+  isExtension?: boolean;
 }
 
 export function FeatureDetailSheet({
@@ -37,6 +38,7 @@ export function FeatureDetailSheet({
   onOpenChange,
   onUpdate,
   onInject,
+  isExtension = false,
 }: FeatureDetailSheetProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localPrompt, setLocalPrompt] = useState('');
@@ -367,51 +369,60 @@ Example:
               </div>
             </div>
 
-            {/* Inject Button */}
-            <div className="pt-4 border-t border-border">
-              {attachedImage ? (
-                // Split button when image is attached
-                <div className="flex gap-1">
-                  {/* Primary action: Inject text only */}
+            {/* Inject Button - Extension only */}
+            {isExtension ? (
+              <div className="pt-4 border-t border-border">
+                {attachedImage ? (
+                  // Split button when image is attached
+                  <div className="flex gap-1">
+                    {/* Primary action: Inject text only */}
+                    <Button
+                      className="flex-1 gradient-button h-12 text-base rounded-r-none"
+                      onClick={handleInject}
+                      disabled={!localPrompt.trim()}
+                    >
+                      <Zap className="w-5 h-5 mr-2" />
+                      Inject Prompt Only
+                    </Button>
+                    
+                    {/* Dropdown for additional options */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          className="gradient-button h-12 px-3 rounded-l-none border-l border-white/20"
+                          disabled={!localPrompt.trim()}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" side="top" className="w-56">
+                        <DropdownMenuItem onClick={handleInjectWithImage}>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Inject Prompt & Image
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ) : (
+                  // Simple button when no image attached
                   <Button
-                    className="flex-1 gradient-button h-12 text-base rounded-r-none"
+                    className="w-full gradient-button h-12 text-base"
                     onClick={handleInject}
                     disabled={!localPrompt.trim()}
                   >
                     <Zap className="w-5 h-5 mr-2" />
-                    Inject Prompt Only
+                    Inject Prompt
                   </Button>
-                  
-                  {/* Dropdown for additional options */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="gradient-button h-12 px-3 rounded-l-none border-l border-white/20"
-                        disabled={!localPrompt.trim()}
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" side="top" className="w-56">
-                      <DropdownMenuItem onClick={handleInjectWithImage}>
-                        <ImageIcon className="w-4 h-4 mr-2" />
-                        Inject Prompt & Image
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ) : (
-                // Simple button when no image attached
-                <Button
-                  className="w-full gradient-button h-12 text-base"
-                  onClick={handleInject}
-                  disabled={!localPrompt.trim()}
-                >
-                  <Zap className="w-5 h-5 mr-2" />
-                  Inject Prompt
-                </Button>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              // Website: Show subtle CTA
+              <div className="pt-4 border-t border-border text-center">
+                <p className="text-xs text-muted-foreground">
+                  Install the extension to inject prompts directly into Lovable
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-center h-full">

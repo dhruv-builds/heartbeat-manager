@@ -266,12 +266,12 @@ export default function Dashboard() {
         isSyncing={isSyncing}
       />
 
-      {/* Credits + Project Selector Row */}
+{/* Credits + Project Selector Row */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Project
         </span>
-        <CreditsBadge />
+        {isExtension && <CreditsBadge />}
       </div>
 
       <ProjectSelector
@@ -285,7 +285,7 @@ export default function Dashboard() {
 
       {activeProject ? (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <FeatureList
+<FeatureList
             features={activeProject.features}
             selectedFeatureId={selectedFeatureId}
             onSelectFeature={handleSelectFeature}
@@ -315,6 +315,7 @@ export default function Dashboard() {
             }}
             onReorderFeatures={(features) => reorderFeatures(activeProject.id, features)}
             onInjectPrompt={handleInjectPrompt}
+            isExtension={isExtension}
           />
         </div>
       ) : (
@@ -337,7 +338,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <FeatureDetailSheet
+<FeatureDetailSheet
         feature={selectedFeature}
         existingFeatures={activeProject?.features || []}
         open={isDetailSheetOpen}
@@ -348,6 +349,7 @@ export default function Dashboard() {
           }
         }}
         onInject={() => selectedFeatureId ? handleInjectPrompt(selectedFeatureId) : Promise.resolve(false)}
+        isExtension={isExtension}
       />
 
       <NewProjectDialog

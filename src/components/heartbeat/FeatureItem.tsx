@@ -15,6 +15,7 @@ interface FeatureItemProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onInject: () => void;
+  showInjectButton?: boolean;
 }
 
 export function FeatureItem({
@@ -27,6 +28,7 @@ export function FeatureItem({
   onDuplicate,
   onDelete,
   onInject,
+  showInjectButton = false,
 }: FeatureItemProps) {
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,19 +83,21 @@ export function FeatureItem({
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge status={feature.status} onClick={handleStatusClick} />
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
-                  onClick={(e: React.MouseEvent) => {
-                    e.stopPropagation();
-                    onInject();
-                  }}
-                  title="Inject Prompt"
-                  disabled={!feature.prompt}
-                >
-                  <Zap className="w-4 h-4" />
-                </Button>
+                {showInjectButton && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onInject();
+                    }}
+                    title="Inject Prompt"
+                    disabled={!feature.prompt}
+                  >
+                    <Zap className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"

@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
 import { FeatureItem } from './FeatureItem';
+import {
+  getActiveFeatures,
+  getCompletedFeatures,
+  sortActiveFeatures,
+  sortCompletedFeatures,
+} from '@/lib/featureSorting';
 
 interface FeatureListProps {
   features: Feature[];
@@ -17,6 +23,7 @@ interface FeatureListProps {
   onReorderFeatures: (features: Feature[]) => void;
   onInjectPrompt: (featureId: string) => void;
   isCompact?: boolean;
+  isExtension?: boolean;
 }
 
 export function FeatureList({
@@ -30,20 +37,32 @@ export function FeatureList({
   onReorderFeatures,
   onInjectPrompt,
   isCompact = false,
+  isExtension = false,
 }: FeatureListProps) {
   const [newFeatureTitle, setNewFeatureTitle] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
-  const sortedFeatures = [...features].sort((a, b) => a.order - b.order);
-  
-  // Split into active and completed tasks
-  const activeTasks = sortedFeatures.filter(f => f.status !== 'done');
-  const completedTasks = sortedFeatures.filter(f => f.status === 'done');
+  // Memoized sorted arrays using shared utilities
+  const activeTasks = useMemo(
+    () => sortActiveFeatures(getActiveFeatures(features)),
+    [features]
+  );
+
+  const completedTasks = useMemo(
+    () => sortCompletedFeatures(getCompletedFeatures(features)),
+    [features]
+  );
+
+  // Combined list for drag-drop (active first, then completed)
+  const allSortedFeatures = useMemo(
+    () => [...activeTasks, ...completedTasks],
+    [activeTasks, completedTasks]
+  );
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
-    const items = Array.from(sortedFeatures);
+    const items = Array.from(allSortedFeatures);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
@@ -98,7 +117,7 @@ export function FeatureList({
           </div>
         )}
 
-        {sortedFeatures.length === 0 && !isAdding ? (
+        {features.length === 0 && !isAdding ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-muted-foreground text-sm">No features yet</p>
             <Button
@@ -118,7 +137,7 @@ export function FeatureList({
                   {...provided.droppableProps}
                   className="space-y-2"
                 >
-                  {/* Active Tasks (Backlog, In Progress) */}
+                  {/* Active Tasks (Next, Backlog) */}
                   {activeTasks.map((feature, index) => (
                     <FeatureItem
                       key={feature.id}
@@ -132,6 +151,7 @@ export function FeatureList({
                       onDuplicate={() => onDuplicateFeature(feature.id)}
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
+                      showInjectButton={isExtension}
                     />
                   ))}
 
@@ -160,6 +180,7 @@ export function FeatureList({
                       onDuplicate={() => onDuplicateFeature(feature.id)}
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
+                      showInjectButton={isExtension}
                     />
                   ))}
                   {provided.placeholder}
