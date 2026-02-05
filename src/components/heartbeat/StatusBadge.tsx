@@ -13,7 +13,7 @@ const statusConfig: Record<FeatureStatus, { label: string; className: string }> 
     label: 'Backlog',
     className: 'bg-muted text-muted-foreground hover:bg-muted/80',
   },
-  'in-progress': {
+  'next': {
     label: 'Next',
     className: 'bg-brand-purple/20 text-brand-purple hover:bg-brand-purple/30',
   },
@@ -42,7 +42,7 @@ export function StatusBadge({ status, onClick, className }: StatusBadgeProps) {
 }
 
 export function getNextStatus(current: FeatureStatus): FeatureStatus {
-  const order: FeatureStatus[] = ['backlog', 'in-progress', 'done'];
+  const order: FeatureStatus[] = ['backlog', 'next', 'done'];
   const currentIndex = order.indexOf(current);
   return order[(currentIndex + 1) % order.length];
 }

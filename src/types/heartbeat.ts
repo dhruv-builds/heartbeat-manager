@@ -1,4 +1,4 @@
-export type FeatureStatus = 'backlog' | 'in-progress' | 'done';
+export type FeatureStatus = 'backlog' | 'next' | 'done';
 
 export interface Feature {
   id: string;
