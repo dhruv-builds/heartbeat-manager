@@ -53,6 +53,9 @@ export function useProjects() {
         name: p.name,
         lovable_project_id: p.lovable_project_id || null,
         lovable_project_url: p.lovable_project_url || null,
+        context_content: p.context_content || null,
+        context_file_name: p.context_file_name || null,
+        context_updated_at: p.context_updated_at || null,
         created_at: p.created_at,
         updated_at: p.updated_at,
         features: featuresData
@@ -429,6 +432,40 @@ export function useProjects() {
     }
   }, []);
 
+  const updateProjectContext = useCallback(async (
+    projectId: string,
+    content: string,
+    fileName: string
+  ): Promise<boolean> => {
+    const now = new Date().toISOString();
+    const updates = {
+      context_content: content,
+      context_file_name: fileName,
+      context_updated_at: now,
+    };
+
+    try {
+      const { error } = await (supabase as any)
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, ...updates, updated_at: now }
+            : p
+        )
+      );
+      return true;
+    } catch (error) {
+      console.error('Error updating project context:', error);
+      return false;
+    }
+  }, []);
+
   return {
     projects,
     activeProject,
@@ -447,6 +484,7 @@ export function useProjects() {
     findProjectByName,
     findProjectByLovableId,
     linkProject,
+    updateProjectContext,
     refetch: fetchProjects,
   };
 }
