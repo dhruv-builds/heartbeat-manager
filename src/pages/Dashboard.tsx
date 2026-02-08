@@ -381,26 +381,6 @@ export default function Dashboard() {
         suggestedName={suggestedProjectName}
       />
 
-      {/* Contact Footer */}
-      <div
-        className={cn(
-          "text-center text-xs text-muted-foreground py-2 border-t border-border",
-          isExtension
-            ? "fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur"
-            : "relative"
-        )}
-      >
-        For any feedback please reach out to{' '}
-        <a
-          href="https://www.linkedin.com/in/sondhidhruv/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline text-foreground hover:text-brand-purple transition-colors"
-        >
-          Dhruv Sondhi
-        </a>
-      </div>
-
       <ProjectContextSheet
         open={isContextSheetOpen}
         onOpenChange={setIsContextSheetOpen}

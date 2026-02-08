@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GradientLogo } from '@/components/ui/GradientLogo';
 import { Button } from '@/components/ui/button';
@@ -6,19 +6,7 @@ import { Sparkles, Syringe, FolderKanban, Gauge, Flame, Brain, Clock, Chrome, Ex
 import heroCinematic from '@/assets/hero-cinematic.png';
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [showStickyCta, setShowStickyCta] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      setShowStickyCta(!entry.isIntersecting);
-    }, {
-      threshold: 0
-    });
-    if (heroRef.current) {
-      observer.observe(heroRef.current);
-    }
-    return () => observer.disconnect();
-  }, []);
   const painPoints = [{
     icon: Flame,
     title: 'Vague prompts, wasted credits',
@@ -201,17 +189,5 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Sticky CTA Banner */}
-      {showStickyCta && <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background/95 backdrop-blur-sm border-t border-border animate-in slide-in-from-bottom-4 duration-300">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <span className="text-foreground font-medium hidden sm:block">
-              Ready to build smarter?
-            </span>
-            <a href="https://chrome.google.com/webstore" target="_blank" rel="noopener noreferrer" className="gradient-button px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 w-full sm:w-auto justify-center">
-              <Chrome size={18} />
-              Get the Extension
-            </a>
-          </div>
-        </div>}
     </div>;
 }
