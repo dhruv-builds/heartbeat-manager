@@ -4,6 +4,7 @@ interface GeneratePromptOptions {
   pageContent: string | null;
   featureTitle: string;
   existingFeatures: string[];
+  projectContext?: string | null;
   attachedImage?: string | null;
   onDelta: (chunk: string) => void;
   onDone: () => void;
@@ -17,6 +18,7 @@ export function useGeneratePrompt() {
     pageContent,
     featureTitle,
     existingFeatures,
+    projectContext,
     attachedImage,
     onDelta,
     onDone,
@@ -37,6 +39,7 @@ export function useGeneratePrompt() {
             pageContent,
             featureTitle,
             existingFeatures,
+            projectContext: projectContext || undefined,
             attachedImage,
           }),
         }

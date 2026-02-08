@@ -24,6 +24,7 @@ import {
 interface FeatureDetailSheetProps {
   feature: Feature | null;
   existingFeatures?: Feature[];
+  projectContext?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: (updates: Partial<Feature>) => void;
@@ -34,6 +35,7 @@ interface FeatureDetailSheetProps {
 export function FeatureDetailSheet({
   feature,
   existingFeatures = [],
+  projectContext,
   open,
   onOpenChange,
   onUpdate,
@@ -227,6 +229,7 @@ export function FeatureDetailSheet({
       pageContent,
       featureTitle: localTitle,
       existingFeatures: doneFeatures,
+      projectContext,
       attachedImage,
       onDelta: (chunk) => {
         setLocalPrompt(prev => prev + chunk);
