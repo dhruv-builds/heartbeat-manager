@@ -27,7 +27,7 @@ serve(async (req) => {
   }
 
   try {
-    const { pageContent, featureTitle, existingFeatures, attachedImage } = await req.json();
+    const { pageContent, featureTitle, existingFeatures, attachedImage, projectContext } = await req.json();
 
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     if (!PERPLEXITY_API_KEY) {
@@ -44,6 +44,7 @@ serve(async (req) => {
     const userPrompt = `
 **Project Context (Current Page):**
 ${pageContent?.slice(0, 8000) || "No page content provided"}
+${projectContext ? `\n**Project Vision & Architecture Context:**\n${projectContext.slice(0, 10000)}` : ""}
 
 **Completed Features:**
 ${existingFeatures?.length ? "- " + existingFeatures.join("\n- ") : "None yet"}
