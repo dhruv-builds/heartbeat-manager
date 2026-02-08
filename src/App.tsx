@@ -6,6 +6,7 @@ import { MemoryRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useChromeMessaging } from "@/hooks/useChromeMessaging";
+import { ContactFooter } from "@/components/ContactFooter";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import LandingPage from "./pages/LandingPage";
@@ -40,6 +41,31 @@ function RootRoute() {
   return <LandingPage />;
 }
 
+function AppLayout() {
+  const { isExtension } = useChromeMessaging();
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col">
+        <Routes>
+          <Route path="/" element={<RootRoute />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </div>
+      <ContactFooter isExtension={isExtension} />
+    </div>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -47,19 +73,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <MemoryRouter>
-          <Routes>
-            <Route path="/" element={<RootRoute />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppLayout />
         </MemoryRouter>
       </TooltipProvider>
     </AuthProvider>
