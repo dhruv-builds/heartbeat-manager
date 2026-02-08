@@ -1,270 +1,222 @@
 
 
-## Task Sequencing + Website Extension-Only Controls
+## Project Context Feature
 
 ### Overview
 
-Implement two updates:
-1. **Task Sequencing**: Consistent, dynamic sorting of features on both website and extension
-2. **Website Controls**: Hide extension-only UI (Free Credits, Inject buttons) on the website
+Add a "Project Context" feature that lets users upload a TXT or DOCX file containing their project's vision/architecture. The extracted text is stored in the `projects` table (columns already added by user). A new Context button in the header opens a sheet with two states: empty (with a generate prompt + upload) and loaded (with preview + update).
 
 ---
 
-### A) Task Sequencing
+### Files to Create
 
-#### Status Value Migration
+| File | Purpose |
+|------|---------|
+| `src/components/heartbeat/ProjectContextSheet.tsx` | New sheet component with State A / State B UI |
 
-Change the status type from `'in-progress'` to `'next'`:
+### Files to Modify
 
-```typescript
-// src/types/heartbeat.ts
-export type FeatureStatus = 'backlog' | 'next' | 'done';  // was 'in-progress'
-```
+| File | Change |
+|------|---------|
+| `src/types/heartbeat.ts` | Add `context_content`, `context_file_name`, `context_updated_at` to `Project` and `DbProject` |
+| `src/hooks/useProjects.ts` | Map new context fields from DB, add `updateProjectContext()` method |
+| `src/pages/Dashboard.tsx` | Add Context button in header area, wire up sheet state |
 
-**Note**: The UI already shows "Next" for 'in-progress' - this just aligns the data model.
+### New Dependency
 
-#### Shared Sorting Utilities
-
-Create a new file `src/lib/featureSorting.ts` with pure functions:
-
-```typescript
-import { Feature } from '@/types/heartbeat';
-
-// Status priority for active section
-const STATUS_PRIORITY: Record<string, number> = {
-  'next': 0,
-  'in-progress': 0,  // Backwards compatibility
-  'backlog': 1,
-};
-
-// Filter functions
-export function getActiveFeatures(features: Feature[]): Feature[] {
-  return features.filter(f => f.status !== 'done');
-}
-
-export function getCompletedFeatures(features: Feature[]): Feature[] {
-  return features.filter(f => f.status === 'done');
-}
-
-// Sorting functions
-export function sortActiveFeatures(features: Feature[]): Feature[] {
-  return [...features].sort((a, b) => {
-    // 1. Status priority: 'next' first, 'backlog' second
-    const statusDiff = (STATUS_PRIORITY[a.status] ?? 1) - (STATUS_PRIORITY[b.status] ?? 1);
-    if (statusDiff !== 0) return statusDiff;
-    
-    // 2. Manual order ascending
-    const orderDiff = a.order - b.order;
-    if (orderDiff !== 0) return orderDiff;
-    
-    // 3. Updated at DESC (most recent first)
-    const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    if (updatedDiff !== 0) return updatedDiff;
-    
-    // 4. Created at ASC (oldest first)
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  });
-}
-
-export function sortCompletedFeatures(features: Feature[]): Feature[] {
-  return [...features].sort((a, b) => {
-    // 1. Updated at DESC (most recently completed first)
-    const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    if (updatedDiff !== 0) return updatedDiff;
-    
-    // 2. Created at DESC (tie-breaker)
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-}
-```
-
-#### Update FeatureList.tsx
-
-Replace current sorting with memoized calls to shared utilities:
-
-```typescript
-import { useMemo } from 'react';
-import { 
-  getActiveFeatures, 
-  getCompletedFeatures, 
-  sortActiveFeatures, 
-  sortCompletedFeatures 
-} from '@/lib/featureSorting';
-
-// Inside component:
-const activeTasks = useMemo(
-  () => sortActiveFeatures(getActiveFeatures(features)),
-  [features]
-);
-
-const completedTasks = useMemo(
-  () => sortCompletedFeatures(getCompletedFeatures(features)),
-  [features]
-);
-
-// Remove old sorting: const sortedFeatures = [...features].sort((a, b) => a.order - b.order);
-```
-
-#### Update StatusBadge.tsx
-
-Change 'in-progress' to 'next' in config and cycle logic:
-
-```typescript
-const statusConfig: Record<FeatureStatus, { label: string; className: string }> = {
-  'backlog': {
-    label: 'Backlog',
-    className: 'bg-muted text-muted-foreground hover:bg-muted/80',
-  },
-  'next': {  // Changed from 'in-progress'
-    label: 'Next',
-    className: 'bg-brand-purple/20 text-brand-purple hover:bg-brand-purple/30',
-  },
-  'done': {
-    label: 'Done',
-    className: 'bg-green-500/20 text-green-400 hover:bg-green-500/30',
-  },
-};
-
-export function getNextStatus(current: FeatureStatus): FeatureStatus {
-  const order: FeatureStatus[] = ['backlog', 'next', 'done'];  // Changed from 'in-progress'
-  const currentIndex = order.indexOf(current);
-  return order[(currentIndex + 1) % order.length];
-}
-```
+- Install `mammoth` for client-side DOCX parsing
 
 ---
 
-### B) Website - Hide Extension-Only Controls
+### 1. Type Updates (`src/types/heartbeat.ts`)
 
-#### Hide CreditsBadge on Website
+Add three optional fields to both `Project` and `DbProject`:
 
-In `Dashboard.tsx`, conditionally render CreditsBadge:
+```typescript
+export interface Project {
+  // ... existing fields
+  context_content?: string | null;
+  context_file_name?: string | null;
+  context_updated_at?: string | null;
+}
+```
+
+Same for `DbProject`.
+
+---
+
+### 2. Hook Updates (`src/hooks/useProjects.ts`)
+
+**fetchProjects**: Map the three new fields from DB response into the Project object.
+
+**New method `updateProjectContext`**:
+
+```typescript
+const updateProjectContext = useCallback(async (
+  projectId: string,
+  content: string,
+  fileName: string
+): Promise<boolean> => {
+  const now = new Date().toISOString();
+  const updates = {
+    context_content: content,
+    context_file_name: fileName,
+    context_updated_at: now,
+  };
+  // Update in Supabase, then optimistic local update
+}, []);
+```
+
+Return `updateProjectContext` from the hook.
+
+---
+
+### 3. Dashboard Updates (`src/pages/Dashboard.tsx`)
+
+- Import `FileText` from lucide-react
+- Add state: `const [isContextSheetOpen, setIsContextSheetOpen] = useState(false);`
+- Add a Context icon button in the header row (next to the Project label), with:
+  - Default/gray when `activeProject?.context_content` is null
+  - Active/purple when context exists (with a small dot indicator)
+- Render `<ProjectContextSheet>` with relevant props
+
+**Button placement**: In the "Credits + Project Selector Row" div, between the "Project" label and the CreditsBadge:
 
 ```tsx
-{/* Credits + Project Selector Row */}
 <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-    Project
-  </span>
+  <div className="flex items-center gap-2">
+    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      Project
+    </span>
+    {activeProject && (
+      <Button variant="ghost" size="icon" className="h-6 w-6 relative" onClick={...}>
+        <FileText className={cn("w-3.5 h-3.5", hasContext ? "text-brand-purple" : "text-muted-foreground")} />
+        {hasContext && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-purple rounded-full" />}
+      </Button>
+    )}
+  </div>
   {isExtension && <CreditsBadge />}
 </div>
 ```
 
-#### Hide Inject Buttons
+---
 
-**Approach**: Pass `isExtension` to FeatureList, which passes it to FeatureItem and FeatureDetailSheet.
+### 4. ProjectContextSheet Component
 
-**FeatureList.tsx** - Add prop:
+A new Sheet component with two states:
 
+**Props**:
 ```typescript
-interface FeatureListProps {
-  // ... existing props
-  isExtension?: boolean;  // NEW
+interface ProjectContextSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  project: Project | null;
+  onSaveContext: (content: string, fileName: string) => Promise<boolean>;
+  isExtension: boolean;
+  onInjectPrompt: (text: string) => Promise<boolean>;
 }
-
-// Pass to FeatureItem:
-<FeatureItem
-  // ... existing props
-  showInjectButton={isExtension}
-/>
 ```
 
-**FeatureItem.tsx** - Conditionally render inject button:
+**State A (No Context)**:
+- Header: "No context loaded"
+- Instructions text
+- Section 1 "Generate Context File":
+  - Read-only textarea with the static prompt (provided in the user's request)
+  - Extension: "Inject to Lovable" button (calls `onInjectPrompt` with the static prompt text)
+  - Website: "Copy Prompt" button (copies to clipboard)
+- Section 2 "Upload Context":
+  - File input accepting `.docx, .txt`
+  - On file select:
+    - `.txt`: Use `FileReader.readAsText()`
+    - `.docx`: Use `mammoth.extractRawText()` to get plain text
+  - Call `onSaveContext(extractedText, fileName)`
+  - Show toast on success/failure
+
+**State B (Context Loaded)**:
+- Header: "Context Active: {context_file_name}"
+- Subheader: "Last updated: {formatted date}"
+- Preview: First 500 chars of context_content in a muted read-only text area
+- "Update Context" button that toggles back to State A (upload mode)
+
+**File parsing logic** (inside the component):
 
 ```typescript
-interface FeatureItemProps {
-  // ... existing props
-  showInjectButton?: boolean;  // NEW
-}
+const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-// In render, wrap inject button:
-{showInjectButton && (
-  <Button
-    size="icon"
-    variant="ghost"
-    className="h-7 w-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
-    onClick={(e: React.MouseEvent) => {
-      e.stopPropagation();
-      onInject();
-    }}
-    title="Inject Prompt"
-    disabled={!feature.prompt}
-  >
-    <Zap className="w-4 h-4" />
-  </Button>
-)}
-```
+  let content = '';
+  if (file.name.endsWith('.txt')) {
+    content = await file.text();
+  } else if (file.name.endsWith('.docx')) {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    content = result.value;
+  }
 
-**FeatureDetailSheet.tsx** - Conditionally render inject section:
-
-```typescript
-interface FeatureDetailSheetProps {
-  // ... existing props
-  isExtension?: boolean;  // NEW
-}
-
-// In render, wrap entire inject button section:
-{isExtension && (
-  <div className="pt-4 border-t border-border">
-    {/* existing inject button(s) */}
-  </div>
-)}
-
-// Optional: Show subtle CTA on website
-{!isExtension && (
-  <div className="pt-4 border-t border-border text-center">
-    <p className="text-xs text-muted-foreground">
-      Install the extension to inject prompts
-    </p>
-  </div>
-)}
-```
-
-**Dashboard.tsx** - Pass isExtension to components:
-
-```tsx
-<FeatureList
-  // ... existing props
-  isExtension={isExtension}
-/>
-
-<FeatureDetailSheet
-  // ... existing props
-  isExtension={isExtension}
-/>
+  await onSaveContext(content, file.name);
+};
 ```
 
 ---
 
-### Files to Modify
+### 5. Static Prompt Content
 
-| File | Changes |
-|------|---------|
-| `src/types/heartbeat.ts` | Change `'in-progress'` to `'next'` in FeatureStatus |
-| `src/lib/featureSorting.ts` | **NEW** - Shared sorting utilities |
-| `src/components/heartbeat/FeatureList.tsx` | Use memoized sorting, pass `isExtension` |
-| `src/components/heartbeat/FeatureItem.tsx` | Add `showInjectButton` prop |
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Add `isExtension` prop, hide inject UI |
-| `src/components/heartbeat/StatusBadge.tsx` | Update status config and cycle |
-| `src/pages/Dashboard.tsx` | Conditionally render CreditsBadge, pass isExtension |
+The exact text from the user's request will be stored as a constant string in `ProjectContextSheet.tsx`:
+
+```typescript
+const CONTEXT_GENERATION_PROMPT = `Generate a **Project Context & Version Log** ...`;
+```
+
+This is rendered in a read-only textarea in State A, Section 1.
 
 ---
 
-### Behavioral Summary
+### Visual Flow
 
-| Behavior | Extension | Website |
-|----------|-----------|---------|
-| **Active section sorting** | 'next' first, then 'backlog', by order | Same |
-| **Completed section sorting** | updated_at DESC | Same |
-| **Status change moves task** | Yes, immediate re-render | Same |
-| **Free Credits badge** | Visible | Hidden |
-| **Quick inject button (card)** | Visible | Hidden |
-| **Main inject button (sheet)** | Visible | Hidden (shows CTA) |
-| **All other CRUD** | Works | Works |
+```text
+Header: [Logo] LovaLog    [Sync] [+] [...]
+Row:    Project [Context icon]         [Credits badge]
+        [Project Selector dropdown]
+        [Feature list...]
+```
+
+Clicking the Context icon opens:
+
+```text
++-- Project Context Sheet ----------------+
+|                                          |
+|  [State A or State B based on data]      |
+|                                          |
+|  State A:                                |
+|    "No context loaded"                   |
+|    Instructions...                       |
+|                                          |
+|    --- Generate Context File ---         |
+|    [Read-only prompt textarea]           |
+|    [Inject to Lovable] or [Copy Prompt]  |
+|                                          |
+|    --- Upload Context ---                |
+|    [Choose File (.docx, .txt)]           |
+|                                          |
+|  State B:                                |
+|    "Context Active: filename.txt"        |
+|    "Last updated: Feb 8, 2026"           |
+|    [Preview: first 500 chars...]         |
+|    [Update Context]                      |
++-----------------------------------------+
+```
 
 ---
 
-### Backwards Compatibility
+### Summary
 
-The sorting function includes `'in-progress': 0` in the priority map to handle any existing database records that haven't been migrated yet. These will sort alongside 'next' correctly.
+1. Install `mammoth` dependency
+2. Add context fields to types
+3. Add `updateProjectContext` to `useProjects` hook + map fields in fetch
+4. Create `ProjectContextSheet` component with State A/B, file parsing, inject/copy logic
+5. Add Context icon button to Dashboard header row
+6. Wire everything together in Dashboard
+
+No changes to existing CRUD, sorting, injection, or extension-only visibility logic.
 
