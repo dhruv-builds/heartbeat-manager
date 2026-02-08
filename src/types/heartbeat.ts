@@ -18,6 +18,9 @@ export interface Project {
   name: string;
   lovable_project_id?: string | null;
   lovable_project_url?: string | null;
+  context_content?: string | null;
+  context_file_name?: string | null;
+  context_updated_at?: string | null;
   features: Feature[];
   created_at: string;
   updated_at: string;
@@ -40,6 +43,9 @@ export interface DbProject {
   name: string;
   lovable_project_id?: string | null;
   lovable_project_url?: string | null;
+  context_content?: string | null;
+  context_file_name?: string | null;
+  context_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 }

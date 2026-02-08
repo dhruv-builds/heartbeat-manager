@@ -7,7 +7,11 @@ import { FeatureList } from '@/components/heartbeat/FeatureList';
 import { FeatureDetailSheet } from '@/components/heartbeat/FeatureDetailSheet';
 import { NewProjectDialog } from '@/components/heartbeat/NewProjectDialog';
 import { CreditsBadge } from '@/components/heartbeat/CreditsBadge';
+import { ProjectContextSheet } from '@/components/heartbeat/ProjectContextSheet';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
   const {
@@ -28,6 +32,7 @@ export default function Dashboard() {
     findProjectByName,
     findProjectByLovableId,
     linkProject,
+    updateProjectContext,
   } = useProjects();
 
   const { 
@@ -47,6 +52,9 @@ export default function Dashboard() {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [suggestedProjectName, setSuggestedProjectName] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isContextSheetOpen, setIsContextSheetOpen] = useState(false);
+
+  const hasContext = !!activeProject?.context_content;
 
   // Auto-detect Lovable project on initial load and when tab changes
   useEffect(() => {
@@ -268,9 +276,22 @@ export default function Dashboard() {
 
 {/* Credits + Project Selector Row */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Project
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Project
+          </span>
+          {activeProject && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 relative"
+              onClick={() => setIsContextSheetOpen(true)}
+            >
+              <FileText className={cn("w-3.5 h-3.5", hasContext ? "text-brand-purple" : "text-muted-foreground")} />
+              {hasContext && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-purple rounded-full" />}
+            </Button>
+          )}
+        </div>
         {isExtension && <CreditsBadge />}
       </div>
 
@@ -357,6 +378,21 @@ export default function Dashboard() {
         onOpenChange={setShowNewProjectDialog}
         onCreateProject={handleCreateProject}
         suggestedName={suggestedProjectName}
+      />
+
+      <ProjectContextSheet
+        open={isContextSheetOpen}
+        onOpenChange={setIsContextSheetOpen}
+        project={activeProject}
+        onSaveContext={async (content, fileName) => {
+          if (!activeProject) return false;
+          return updateProjectContext(activeProject.id, content, fileName);
+        }}
+        isExtension={isExtension}
+        onInjectPrompt={async (text) => {
+          const success = await injectPrompt(text);
+          return success;
+        }}
       />
     </div>
   );
