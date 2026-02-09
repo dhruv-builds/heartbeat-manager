@@ -3,7 +3,6 @@ import { Feature } from '@/types/heartbeat';
 // Status priority for active section
 const STATUS_PRIORITY: Record<string, number> = {
   'next': 0,
-  'in-progress': 0, // Backwards compatibility
   'backlog': 1,
 };
 
