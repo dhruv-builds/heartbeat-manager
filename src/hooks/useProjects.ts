@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Project, Feature, FeatureStatus } from '@/types/heartbeat';
+import { toast } from '@/hooks/use-toast';
 
 // Use 'any' for Supabase queries since we're connecting to an external Supabase
 // whose types aren't in the auto-generated types file
@@ -236,8 +237,11 @@ export function useProjects() {
       );
     } catch (error) {
       console.error('Error updating feature:', error);
+      toast({ title: 'Update failed', description: 'Could not update the feature. Please try again.', variant: 'destructive' });
+      // Revert optimistic update
+      fetchProjects();
     }
-  }, []);
+  }, [fetchProjects]);
 
   const deleteFeature = useCallback(async (projectId: string, featureId: string) => {
     try {
