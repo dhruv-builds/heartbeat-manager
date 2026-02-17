@@ -8,7 +8,7 @@ const CREDITS_STORAGE_KEY = 'lavalog_credits_status';
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CHECK_CURRENT_PAGE') {
     handleCheckCurrentPage(sendResponse);
-    return true; // Keep channel open for async response
+    return true;
   }
   
   if (message.type === 'INJECT_PROMPT') {
@@ -32,7 +32,7 @@ function handleScrapePageContent(sendResponse) {
     const content = document.body.innerText || '';
     sendResponse({
       success: true,
-      content: content.slice(0, 50000) // Limit to 50k chars
+      content: content.slice(0, 50000)
     });
   } catch (error) {
     console.error('[LavaLog] Scrape error:', error);
@@ -51,7 +51,6 @@ function handleCheckCurrentPage(sendResponse) {
   let projectName = null;
   
   if (isLovable) {
-    // Try to find the project name in the Lovable UI
     const projectNameElement = document.querySelector('p[translate="no"]');
     if (projectNameElement) {
       projectName = projectNameElement.textContent?.trim() || null;
@@ -83,7 +82,6 @@ function handleInjectPrompt(text, sendResponse) {
     chatInput = document.querySelector('textarea[placeholder*="Message"]');
   }
   if (!chatInput) {
-    // Last resort - any contenteditable
     chatInput = document.querySelector('[contenteditable="true"]');
   }
 
@@ -101,32 +99,20 @@ function handleInjectPrompt(text, sendResponse) {
   }
 
   try {
-    // Scroll into view and focus
     chatInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
     chatInput.focus();
 
-    // For contenteditable elements (Lovable uses ProseMirror/Tiptap)
     if (chatInput.getAttribute('contenteditable') === 'true') {
-      // Clear existing content first
       chatInput.innerHTML = '';
-      
-      // Use execCommand for best compatibility with contenteditable
       const success = document.execCommand('insertText', false, text);
-      
-      // Fallback: set innerHTML directly if execCommand fails
       if (!success || chatInput.textContent.trim() === '') {
         chatInput.innerHTML = '<p>' + text + '</p>';
       }
-      
-      // Dispatch events so React/ProseMirror detects the change
       chatInput.dispatchEvent(new Event('input', { bubbles: true }));
       chatInput.dispatchEvent(new Event('change', { bubbles: true }));
     } else {
-      // Standard textarea/input
       chatInput.value = text;
       chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-      
-      // Move cursor to end
       if (chatInput.setSelectionRange) {
         chatInput.setSelectionRange(text.length, text.length);
       }
@@ -157,12 +143,10 @@ function handleGetCredits(sendResponse) {
   try {
     if (DEBUG_CREDITS) console.log('[LavaLog] Starting credits scrape...');
 
-    // Find Credits panel by locating a <p> with exact text "Credits"
     const allParagraphs = Array.from(document.querySelectorAll('p'));
     const creditsPanelLabel = allParagraphs.find(p => p.textContent?.trim() === 'Credits');
     
     if (creditsPanelLabel) {
-      // Panel found - scrape actual status
       let creditsContainer = creditsPanelLabel.parentElement;
       for (let i = 0; i < 5 && creditsContainer; i++) {
         if (creditsContainer.textContent?.includes('Daily credits')) break;
@@ -182,7 +166,6 @@ function handleGetCredits(sendResponse) {
         status = 'none';
       }
 
-      // Persist to localStorage
       if (status !== 'unknown') {
         localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ status, date: today }));
       }
@@ -195,7 +178,6 @@ function handleGetCredits(sendResponse) {
         timestamp: Date.now()
       });
     } else {
-      // Panel not found - check localStorage for today's cached status
       if (DEBUG_CREDITS) console.log('[LavaLog] Credits panel not found, checking cache...');
       
       try {
@@ -225,29 +207,46 @@ function handleGetCredits(sendResponse) {
   }
 }
 
-// Credits invalidation - detect when user consumes a credit
+// Credits invalidation - detect when user submits a prompt
 function setupCreditsInvalidation() {
   const hostname = window.location.hostname;
   if (!hostname.includes('lovable.dev') && !hostname.includes('lovable.app')) return;
 
   const today = new Date().toDateString();
 
+  function invalidateAndRecheck() {
+    // Set to unknown (neutral/gray) instead of none (red)
+    localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ 
+      status: 'unknown', 
+      date: today 
+    }));
+    // Notify extension of invalidation
+    try {
+      chrome.runtime.sendMessage({ type: 'CREDITS_INVALIDATED' });
+    } catch (e) {
+      // Extension context might not be available
+    }
+    // Schedule a re-check after 3 seconds
+    setTimeout(() => {
+      handleGetCredits((result) => {
+        try {
+          chrome.runtime.sendMessage({
+            type: 'CREDITS_UPDATE',
+            data: result
+          });
+        } catch (e) {
+          // ignore
+        }
+      });
+    }, 3000);
+  }
+
   // Listen for Enter key in chat input (submitting a prompt)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       const chatInput = document.querySelector('[aria-label="Chat input"][contenteditable="true"]');
       if (chatInput && document.activeElement === chatInput && chatInput.textContent?.trim()) {
-        // Invalidate credits status
-        localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ 
-          status: 'none', 
-          date: today 
-        }));
-        // Notify extension
-        try {
-          chrome.runtime.sendMessage({ type: 'CREDITS_CONSUMED' });
-        } catch (e) {
-          // Extension context might not be available
-        }
+        invalidateAndRecheck();
       }
     }
   });
@@ -257,15 +256,7 @@ function setupCreditsInvalidation() {
     const target = e.target;
     const sendButton = target.closest && target.closest('button[type="submit"], button[aria-label*="Send"], button[aria-label*="send"]');
     if (sendButton) {
-      localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({ 
-        status: 'none', 
-        date: today 
-      }));
-      try {
-        chrome.runtime.sendMessage({ type: 'CREDITS_CONSUMED' });
-      } catch (e) {
-        // Extension context might not be available
-      }
+      invalidateAndRecheck();
     }
   }, true);
 

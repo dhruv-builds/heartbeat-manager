@@ -105,14 +105,21 @@ export function useCredits() {
     }
   }, []);
 
-  // Listen for CREDITS_CONSUMED messages from content script
+  // Listen for background messages (CREDITS_UPDATE, CREDITS_INVALIDATED)
   useEffect(() => {
     if (!isChromeExtension()) return;
 
-    const handleMessage = (message: { type: string }) => {
-      if (message.type === 'CREDITS_CONSUMED') {
+    const handleMessage = (message: { type: string; data?: CreditsResponse }) => {
+      if (message.type === 'CREDITS_UPDATE' && message.data) {
         setCredits({
-          freeCreditsAvailable: false,
+          freeCreditsAvailable: message.data.freeCreditsAvailable ?? null,
+          lastUpdated: new Date(),
+        });
+        setError(null);
+      }
+      if (message.type === 'CREDITS_INVALIDATED') {
+        setCredits({
+          freeCreditsAvailable: null,
           lastUpdated: new Date(),
         });
       }
@@ -124,11 +131,9 @@ export function useCredits() {
     };
   }, []);
 
-  // Fetch on mount and auto-refresh every 60 seconds
+  // Fetch on mount only (background polling handles periodic checks)
   useEffect(() => {
     fetchCredits();
-    const interval = setInterval(fetchCredits, 60000);
-    return () => clearInterval(interval);
   }, [fetchCredits]);
 
   return { credits, isLoading, error, fetchCredits };

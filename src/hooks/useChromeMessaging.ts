@@ -26,6 +26,7 @@ declare const chrome: {
       content?: string | null;
     }>;
     update: (tabId: number, updateProperties: { url?: string }) => Promise<unknown>;
+    create: (createProperties: { url?: string }) => Promise<unknown>;
     onActivated?: {
       addListener: (callback: (activeInfo: { tabId: number; windowId: number }) => void) => void;
       removeListener: (callback: (activeInfo: { tabId: number; windowId: number }) => void) => void;
@@ -230,12 +231,11 @@ export function useChromeMessaging() {
       const tab = tabs[0];
       if (!tab?.id) return false;
       
-      // Check for restricted URLs
       if (isRestrictedUrl(tab.url || null)) {
-        return false;
+        await chrome.tabs!.create({ url });
+      } else {
+        await chrome.tabs!.update(tab.id, { url });
       }
-      
-      await chrome.tabs!.update(tab.id, { url });
       return true;
     } catch {
       return false;
