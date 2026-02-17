@@ -1,0 +1,277 @@
+LovaLog — Project Context & Version Log
+========================================
+
+1. Version
+----------
+v0.5 — 2026-02-17
+
+2. Product Vision & Emotional Thesis
+-------------------------------------
+LovaLog is a power-user companion for Lovable developers. It sits inside the browser as a Chrome extension side-panel and also lives as a standalone website dashboard.
+
+Emotional target: "Mission control for my build session."
+- Fast, focused, zero-friction task capture
+- Dark, dense, tool-like — closer to a terminal or IDE panel than a consumer app
+- The user is a solo builder or small-team dev who thinks in features, not tickets
+- Calm confidence: the UI should feel like it already knows what you need
+
+User archetype: Power user who builds with Lovable daily. They want to:
+- Capture feature ideas mid-flow without leaving Lovable
+- Generate scoped prompts from feature descriptions + optional screenshots
+- Inject those prompts directly into Lovable's chat
+- Track what's next, what's in the backlog, and what's done
+
+3. Current Feature Set
+----------------------
+EXISTS TODAY:
+- Chrome extension (Manifest V3, side-panel)
+  - OAuth login via chrome.identity (Google provider through Supabase)
+  - Project CRUD (create, select, rename — stored in Supabase)
+  - Feature/task CRUD per project
+    - Title, description, optional image upload (Supabase Storage)
+    - Status cycling: backlog → next → done
+    - Manual drag-to-reorder (persisted `order` field)
+  - AI prompt generation (edge function → Perplexity API / sonar-pro model)
+  - Prompt injection into Lovable chat via content script
+  - Background credit polling (5-minute alarm cycle via chrome.alarms)
+  - Event-driven credit check on Lovable tab load completion
+  - Smart prompt-submission invalidation (sets status to 'unknown', re-checks after 3s)
+  - Feature detail sheet (view/edit description, prompt, image, status)
+  - Project context upload (.txt / .docx) for enriching AI prompt generation
+
+- Website dashboard (same React app, different context)
+  - Auth via Supabase email/password (standard login/signup)
+  - Same project + feature CRUD
+  - Same prompt generation
+  - Load button opens Lovable project in new tab via window.open
+  - Extension-only controls hidden (inject buttons, credits badge)
+  - "Add Context" purple CTA when no context is uploaded; purple dot indicator when context exists
+
+- Smart Load button behavior (v0.5):
+  - Extension: navigates current tab for standard pages, opens new tab for system pages (chrome://, edge://)
+  - Web: always opens project in new tab
+  - Hidden entirely when current tab URL matches the selected project URL
+
+- Landing page at root route (website only; extension skips to auth)
+  - Cinematic hero with "Build better. Waste nothing." tagline
+  - Pain points section, features grid, CTA to Chrome Web Store
+
+- Shared sorting logic:
+  - Active section: status priority (next > backlog) → manual order ASC → updated_at DESC → created_at ASC
+  - Completed section: updated_at DESC → created_at DESC
+
+PLANNED NEXT:
+- Prompt versioning / history
+- Multi-image support per feature
+- Potential: completed_at timestamp column
+- BrowserRouter for website context (enable deep links, SEO)
+
+INTENTIONALLY DEFERRED:
+- Team / collaboration features
+- Billing / premium tier
+- Mobile-native app
+- Notification system
+- Analytics / build-session tracking
+
+4. Architectural Decisions
+--------------------------
+FRONTEND:
+- React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui
+- Why: Lovable's native stack; zero config friction
+- MemoryRouter (not BrowserRouter): required for Chrome extension side-panel (no real URL bar)
+  - Constraint: all routing must work without browser history API
+  - Open question: could use BrowserRouter for website context only
+- State: React Query for server state, local useState for UI state
+- No global state manager (Redux, Zustand) — intentionally simple
+
+BACKEND:
+- Supabase (external project, NOT Lovable Cloud's auto-provisioned instance)
+  - Why: project predates Lovable Cloud; migrating would break extension OAuth config
+  - Constraint: src/integrations/supabase/client.ts uses hardcoded URL + anon key pointing to the external project
+  - INVARIANT: Do not let Lovable Cloud overwrite this file (it's in the codebase but manually maintained)
+- Edge function: generate-feature-prompt
+  - Calls Perplexity API (api.perplexity.ai) with PERPLEXITY_API_KEY secret
+  - Model: sonar-pro (multimodal, supports image + text input)
+  - Accepts: pageContent, featureTitle, existingFeatures, projectContext, attachedImage
+  - Returns: generated prompt text via choices[0].message.content
+  - Note: The useGeneratePrompt hook calls this via VITE_SUPABASE_URL env var (Lovable Cloud URL), NOT the external Supabase
+
+STORAGE:
+- Supabase Storage bucket for feature screenshots/images (on external Supabase)
+- Images uploaded from extension, viewable on both extension + website
+- Public URLs used in prompts sent to AI
+
+AUTH:
+- Two parallel auth flows (same external Supabase project):
+  1. Extension: chrome.identity OAuth → Google → Supabase signInWithIdToken
+  2. Website: email/password via Supabase signUp / signInWithPassword
+- AuthProvider wraps the app; ProtectedRoute guards /dashboard
+- Session persisted by Supabase client (localStorage)
+
+CHROME EXTENSION:
+- Manifest V3, side_panel API
+- Permissions: sidePanel, scripting, activeTab, storage, tabs, identity, clipboardWrite, alarms
+- content.js: injected into Lovable tabs
+  - Scrapes free credits from DOM (brittle: depends on specific text patterns)
+  - Injects prompts by finding [aria-label="Chat input"] and simulating input
+  - Prompt submission detection sets credits to 'unknown' + triggers 3s delayed re-check
+  - INVARIANT: these DOM selectors WILL break if Lovable changes their UI
+- background.js: handles chrome.runtime messages, 5-minute credit polling alarm, tab-complete credit checks
+- useChromeMessaging hook: abstracts extension messaging for React components
+  - Tab URL tracking with debounce
+  - Smart navigation (chrome.tabs.update for standard pages, chrome.tabs.create for system pages)
+- useCredits hook: listens for CREDITS_UPDATE and CREDITS_INVALIDATED messages from background
+
+5. Integration Boundaries
+--------------------------
+EXTENSION ↔ LOVABLE TAB:
+- content.js runs in Lovable's page context
+- Communication: chrome.runtime.sendMessage / onMessage
+- Injection: finds chat input, sets value, dispatches input event, clicks send
+- Credits: queries DOM for credit display text, parses number
+- Background polling: alarm-based (every 5 min) + tab-load-complete triggers
+- Risk: any Lovable UI change can break both features silently
+
+EXTENSION ↔ BACKEND:
+- Direct Supabase client calls (same as website) to external Supabase
+- Edge function called via supabase.functions.invoke() or direct fetch to Lovable Cloud edge function URL
+- Auth token attached automatically by Supabase client
+
+WEBSITE ↔ BACKEND:
+- Identical to extension (same client, same queries)
+- No extension APIs available — isExtension check prevents calls
+- Load button uses window.open instead of chrome.tabs API
+
+EDGE FUNCTION HOSTING:
+- generate-feature-prompt is deployed on Lovable Cloud (ycltllrtspdnyhtahhhv)
+- Called via VITE_SUPABASE_URL, NOT the external Supabase URL
+- Uses PERPLEXITY_API_KEY stored as a Lovable Cloud secret
+
+KNOWN PLATFORM LIMITATIONS:
+- Chrome extensions cannot use BrowserRouter (no URL bar in side panel)
+- Content scripts run in isolated world; must use message passing
+- Manifest V3 service workers are ephemeral (no persistent background)
+- Supabase anon key is exposed client-side (RLS policies are the security boundary)
+- chrome.alarms minimum interval is 1 minute (we use 5 minutes)
+
+6. Design Direction
+-------------------
+UI TONE:
+- Dark theme only (no light mode planned)
+- Compact, dense information display
+- Purple accent (brand-purple) as the primary action color
+- Muted grays for secondary content
+- Green for "done" / success states
+- Minimal animation; functional transitions only
+
+LAYOUT PRINCIPLES:
+- Extension: single-column, scrollable, fits 400px side panel
+- Website: same component structure, slightly more breathing room
+- Feature list is the primary view; everything else is secondary
+- Detail sheet (slide-over) for editing — not a separate page
+- No modals for CRUD; inline editing and sheets preferred
+- Context button: "Add Context" text CTA (purple, Plus icon) when empty; icon-only with dot indicator when active
+
+HERO / MARKETING:
+- Landing page with cinematic hero image (hero-cinematic.png)
+- "Build better. Waste nothing." tagline
+- Dark, dramatic, tool-focused aesthetic
+- CTA drives to Chrome Web Store + login
+- Pain points section emphasizing credit waste, lost ideas, expiring credits
+
+7. Known Constraints, Risks & Sharp Edges
+------------------------------------------
+BRITTLE DOM SELECTORS:
+- content.js depends on Lovable's DOM structure for injection and credit scraping
+- These WILL break without warning when Lovable updates their UI
+- No fallback mechanism currently exists
+
+DUAL SUPABASE SETUP:
+- Data (projects, features, auth) lives on EXTERNAL Supabase (sacnvqqjrrrzdkifsxyp)
+- Edge function lives on Lovable Cloud Supabase (ycltllrtspdnyhtahhhv)
+- client.ts is hardcoded and must NOT be auto-regenerated by Lovable Cloud
+- PERPLEXITY_API_KEY is stored on Lovable Cloud secrets, not the external Supabase
+
+EDGE FUNCTION SECURITY:
+- generate-feature-prompt uses Bearer token with the Lovable Cloud anon key
+- Does not validate JWT / user auth — anyone with the anon key could call it
+- Should add auth check but hasn't been prioritized
+
+NO COMPLETED_AT COLUMN:
+- "Completed" sorting uses updated_at as proxy
+- Any edit to a completed feature changes its position in the list
+- Adding completed_at would fix this but requires migration + code changes
+
+MEMORYROUTER LIMITATION:
+- Deep links don't work (no URL to share)
+- Browser back/forward buttons don't work in extension
+- Acceptable for extension; may want BrowserRouter for website
+
+CREDITS CACHE TIMING:
+- 3-second delayed re-check after prompt submission may not always capture the updated count
+- Lovable's UI may take longer to update credit display
+- Background polling every 5 minutes fills the gap
+
+8. What Changed in v0.5
+------------------------
+NEW DECISIONS:
+- Load button is now available on web dashboard (opens project in new tab via window.open)
+- Load button hidden entirely when current tab URL matches selected project (smart hiding)
+- Extension Load button handles system pages (chrome://, edge://) by opening new tab instead of failing
+- Load button is never disabled — always actionable or hidden
+- Confirmation dialog removed for non-Lovable page navigation (system tabs handled gracefully)
+
+- Credits background polling added via chrome.alarms (5-minute interval)
+- Credits check triggered on Lovable tab load completion (chrome.tabs.onUpdated)
+- Prompt submission no longer sets credits to "none" (red) — sets to "unknown" (neutral/gray) with 3s delayed re-check
+- CREDITS_UPDATE and CREDITS_INVALIDATED messages flow from background → side panel
+- 60-second client-side polling interval removed (background polling replaces it)
+
+- Context button redesigned: "Add Context" text label with Plus icon (purple) when no context exists
+- Context button unchanged when context exists (FileText icon with purple dot indicator)
+- "alarms" permission added to manifest.json
+
+INVALIDATED ASSUMPTIONS:
+- Previously assumed credits could only be checked on-demand or via client-side interval
+- Now: background service worker handles periodic + event-driven credit checks
+- Previously assumed Load button should be disabled on system tabs
+- Now: Load button uses chrome.tabs.create as fallback for restricted URLs
+
+SCOPE SHIFTS:
+- Web dashboard is now a more capable surface (Load button, context CTA)
+- Credits system is now continuous background monitoring, not on-demand
+- Extension navigation is smarter and never fails silently
+
+9. Open Questions & Upcoming Decisions
+---------------------------------------
+1. EDGE FUNCTION AUTH: Lock down generate-feature-prompt with JWT validation?
+   - Currently open to any request with anon key.
+
+2. COMPLETED_AT COLUMN: Add a dedicated timestamp for completion?
+   - Would fix sorting stability for completed features.
+
+3. BROWSERROUTER FOR WEBSITE: Use BrowserRouter when !isExtension?
+   - Would enable deep links, SEO, proper browser navigation on web.
+
+4. CONTENT SCRIPT RESILIENCE: Add fallback selectors or detection for Lovable UI changes?
+   - Currently single-point-of-failure DOM queries.
+
+5. PROMPT VERSIONING: Store prompt history per feature?
+   - Users regenerate prompts; previous versions are lost.
+
+6. MULTI-DEVICE SYNC: Handle conflicts when same user edits from extension + website simultaneously?
+   - Currently last-write-wins via Supabase.
+
+7. PERPLEXITY vs LOVABLE AI GATEWAY: Migrate prompt generation to Lovable AI Gateway?
+   - Currently uses Perplexity sonar-pro. Could use google/gemini-2.5-flash via ai.gateway.lovable.dev.
+   - Would eliminate the PERPLEXITY_API_KEY dependency.
+
+8. CREDITS RE-CHECK TIMING: Is 3 seconds enough delay after prompt submission?
+   - Lovable's credit UI may update slower. Could increase to 5s or add retry logic.
+
+9. STATUS MIGRATION DEBT: Run UPDATE features SET status = 'next' WHERE status = 'in-progress'?
+   - Low risk, high value. Database may still have legacy values.
+
+---
+End of Project Context Log
+Generated: 2026-02-17
