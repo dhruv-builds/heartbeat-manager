@@ -10,7 +10,7 @@ import { CreditsBadge } from '@/components/heartbeat/CreditsBadge';
 import { ProjectContextSheet } from '@/components/heartbeat/ProjectContextSheet';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { FileText } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
@@ -90,12 +90,6 @@ export default function Dashboard() {
     
     const url = `https://lovable.dev/projects/${selectedLovableId}`;
     
-    // Confirm if not already on Lovable
-    if (!isOnLovableHost) {
-      const confirmed = window.confirm('This will replace the current page. Continue?');
-      if (!confirmed) return;
-    }
-    
     const success = await navigateActiveTab(url);
     if (!success) {
       toast({
@@ -104,7 +98,7 @@ export default function Dashboard() {
         variant: 'destructive',
       });
     }
-  }, [selectedLovableId, isOnLovableHost, navigateActiveTab, toast]);
+  }, [selectedLovableId, navigateActiveTab, toast]);
 
   const handleLinkProject = useCallback(async () => {
     if (!activeProject || !detectedLovableId) return;
@@ -126,34 +120,32 @@ export default function Dashboard() {
   }, [activeProject, detectedLovableId, linkProject, toast]);
 
   const inlineAction = useMemo(() => {
-    if (!isExtension) return null;
-    
-    // MATCHED: no button
+    // MATCHED: hide button (both extension and web)
     if (selectedLovableId && selectedLovableId === detectedLovableId) {
       return null;
     }
-    
-    // MISMATCH: show Load
-    if (selectedLovableId && selectedLovableId !== detectedLovableId) {
+
+    // Extension: show Load for linked projects (never disabled)
+    if (isExtension && selectedLovableId && selectedLovableId !== detectedLovableId) {
+      return { type: 'load' as const, onAction: handleLoadProject, disabled: false };
+    }
+
+    // Web dashboard: show Load for linked projects (opens new tab)
+    if (!isExtension && selectedLovableId) {
       return {
         type: 'load' as const,
-        onAction: handleLoadProject,
-        disabled: isRestrictedTab,
-      };
-    }
-    
-    // UNLINKED + on Lovable: show Link
-    if (!selectedLovableId && detectedLovableId) {
-      return {
-        type: 'link' as const,
-        onAction: handleLinkProject,
+        onAction: () => window.open(`https://lovable.dev/projects/${selectedLovableId}`, '_blank'),
         disabled: false,
       };
     }
-    
-    // UNLINKED + not on Lovable: no button
+
+    // UNLINKED + on Lovable: show Link (extension only)
+    if (isExtension && !selectedLovableId && detectedLovableId) {
+      return { type: 'link' as const, onAction: handleLinkProject, disabled: false };
+    }
+
     return null;
-  }, [isExtension, selectedLovableId, detectedLovableId, isRestrictedTab, handleLoadProject, handleLinkProject]);
+  }, [isExtension, selectedLovableId, detectedLovableId, handleLoadProject, handleLinkProject]);
 
   const selectedFeature = activeProject?.features.find(f => f.id === selectedFeatureId) || null;
 
@@ -281,15 +273,20 @@ export default function Dashboard() {
             Project
           </span>
           {activeProject && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 relative"
-              onClick={() => setIsContextSheetOpen(true)}
-            >
-              <FileText className={cn("w-3.5 h-3.5", hasContext ? "text-brand-purple" : "text-muted-foreground")} />
-              {hasContext && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-purple rounded-full" />}
-            </Button>
+            hasContext ? (
+              <Button variant="ghost" size="icon" className="h-6 w-6 relative"
+                onClick={() => setIsContextSheetOpen(true)}>
+                <FileText className="w-3.5 h-3.5 text-brand-purple" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-purple rounded-full" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm"
+                className="h-6 px-2 text-brand-purple hover:text-brand-purple gap-1"
+                onClick={() => setIsContextSheetOpen(true)}>
+                <Plus className="w-3 h-3" />
+                <span className="text-xs font-medium">Add Context</span>
+              </Button>
+            )
           )}
         </div>
         {isExtension && <CreditsBadge />}
