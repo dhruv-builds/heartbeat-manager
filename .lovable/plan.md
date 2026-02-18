@@ -1,233 +1,127 @@
 
 
-## Three Updates: Load Button, Context Button, Credits Background Checking
+## Comprehensive Onboarding Flow for LovaLog
+
+This plan implements 5 areas of onboarding improvements with one modification from the original: the "Empty Context" nudge banner will appear even when the feature list is empty (before any features are added).
 
 ---
 
-### 1. Load Button -- Smart Hiding + Web Dashboard Support
+### 1. Empty State Logic (No Active Project)
 
-**Current behavior**: The Load button only appears in the extension. It is disabled on restricted tabs (chrome://, edge://) and hidden when the selected project matches the detected tab.
+**File:** `src/pages/Dashboard.tsx`
 
-**New behavior**:
+Replace the current generic empty state (the block that shows "Create your first project" / "Select a project") with two environment-aware scenarios:
 
-- **Extension**: Hide Load when active tab URL matches the project URL (existing). For mismatches, always show Load (never disabled). On click: navigate current tab for standard pages, open new tab for system pages (chrome://, edge://, about:, new tab).
-- **Web Dashboard**: Show Load button when the project has a `lovable_project_id`. On click: always open in a **new tab** via `window.open()`.
+**Scenario A -- Not on Lovable (or Web Dashboard):**
+- `GradientLogo` component (small)
+- `Globe` Lucide icon as browser illustration
+- Headline: "Welcome to LovaLog"
+- Body: "Navigate to a project on Lovable to create your first LovaLog."
+- Primary button: "Go to Lovable" -- extension calls `navigateActiveTab('https://lovable.dev/')`, web opens new tab
 
-**Files to modify**:
+**Scenario B -- On Lovable (Extension detects Lovable host):**
+- `GradientLogo` component (small)
+- Headline: "Ready to build?"
+- Body: "Select a project from Lovable to start tracking features."
 
-| File | Change |
-|------|--------|
-| `src/hooks/useChromeMessaging.ts` | Add `chrome.tabs.create` to type declaration. Update `navigateActiveTab` to use `chrome.tabs.create` for restricted URLs instead of returning false. |
-| `src/pages/Dashboard.tsx` | Update `inlineAction` memo: remove `if (!isExtension) return null` guard. For web mode, return a Load action that uses `window.open`. Remove `disabled: isRestrictedTab` from extension Load action. |
-
-**Detail for `navigateActiveTab`** (useChromeMessaging.ts lines 226-243):
-```typescript
-const navigateActiveTab = useCallback(async (url: string): Promise<boolean> => {
-  if (!isExtension) return false;
-  try {
-    const tabs = await chrome.tabs!.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
-    if (!tab?.id) return false;
-    
-    if (isRestrictedUrl(tab.url || null)) {
-      // System page -- open in new tab instead
-      await chrome.tabs!.create({ url });
-    } else {
-      await chrome.tabs!.update(tab.id, { url });
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}, [isExtension]);
-```
-
-**Detail for `inlineAction` memo** (Dashboard.tsx lines 128-156):
-```typescript
-const inlineAction = useMemo(() => {
-  // MATCHED: hide button (both extension and web)
-  if (selectedLovableId && selectedLovableId === detectedLovableId) {
-    return null;
-  }
-
-  // Extension: show Load for linked projects (never disabled)
-  if (isExtension && selectedLovableId && selectedLovableId !== detectedLovableId) {
-    return { type: 'load', onAction: handleLoadProject, disabled: false };
-  }
-
-  // Web dashboard: show Load for linked projects (opens new tab)
-  if (!isExtension && selectedLovableId) {
-    return {
-      type: 'load',
-      onAction: () => window.open(`https://lovable.dev/projects/${selectedLovableId}`, '_blank'),
-      disabled: false,
-    };
-  }
-
-  // UNLINKED + on Lovable: show Link (extension only)
-  if (isExtension && !selectedLovableId && detectedLovableId) {
-    return { type: 'link', onAction: handleLinkProject, disabled: false };
-  }
-
-  return null;
-}, [...]);
-```
-
-Also remove the confirmation dialog from `handleLoadProject` for non-Lovable pages since system tabs are handled gracefully now, and standard page navigation is the expected behavior.
+Detection uses the existing `isOnLovableHost` boolean from `useChromeMessaging`. Web dashboard defaults to Scenario A.
 
 ---
 
-### 2. Context Button -- "Add Context" Label When Empty
+### 2. "Link Project" Modal Redesign
 
-**Current behavior**: A small icon-only button with FileText icon. Purple when context exists, muted when empty.
+**File:** `src/components/heartbeat/NewProjectDialog.tsx`
 
-**New behavior**: When context is empty, render a text button with Plus icon and "Add Context" label in the brand purple color. When context exists, keep existing icon button unchanged.
+When `suggestedName` is present (Lovable project detected):
 
-**File to modify**: `src/pages/Dashboard.tsx` (lines 283-293)
+| Element | Current | New |
+|---------|---------|-----|
+| Headline | "Start Heartbeat" or similar | "Let's start the LovaLog!" |
+| Icon | White Heart with fill | Heart icon with brand gradient class (pink/orange) |
+| Body | Keep as-is | Keep as-is |
+| Primary button label | "Create Project" | "Start Logging" |
+| Primary button style | Current | Solid brand purple background, white text |
+| Cancel button | `variant="outline"` | `variant="ghost"` with muted text |
 
-```tsx
-{activeProject && (
-  hasContext ? (
-    <Button variant="ghost" size="icon" className="h-6 w-6 relative"
-      onClick={() => setIsContextSheetOpen(true)}>
-      <FileText className="w-3.5 h-3.5 text-brand-purple" />
-      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-purple rounded-full" />
-    </Button>
-  ) : (
-    <Button variant="ghost" size="sm"
-      className="h-6 px-2 text-brand-purple hover:text-brand-purple gap-1"
-      onClick={() => setIsContextSheetOpen(true)}>
-      <Plus className="w-3 h-3" />
-      <span className="text-xs font-medium">Add Context</span>
-    </Button>
-  )
-)}
-```
-
-Import `Plus` from lucide-react (already available in the project).
+When `suggestedName` is NOT present (manual creation), keep existing "New Project" title and "Create Project" label.
 
 ---
 
-### 3. Credits -- Background Polling and Smarter Invalidation
+### 3. Main Project View Updates
 
-This requires changes across three files: the background service worker, the content script, and the React hook.
+#### 3a. Link Button Styling
 
-#### 3a. Background Service Worker (`public/background.js`)
+**File:** `src/components/heartbeat/ProjectSelector.tsx`
 
-Add two mechanisms:
+When `inlineAction.type === 'link'`, apply:
+- Solid brand purple background: `bg-[hsl(var(--brand-purple))] text-white`
+- Pulse animation: `animate-pulse`
 
-1. **5-minute polling alarm**: Use `chrome.alarms` API to fire every 5 minutes. On alarm, check if the active tab is on lovable.dev/lovable.app. If yes, send a `CHECK_CREDITS` message to the content script. Broadcast the result as `CREDITS_UPDATE` to the side panel.
+#### 3b. "Empty Context" Nudge Banner (UPDATED)
 
-2. **Tab load completion trigger**: Enhance the existing `chrome.tabs.onUpdated` listener. When `changeInfo.status === 'complete'` and the URL is Lovable, immediately trigger a credits check on that tab.
+**File:** `src/components/heartbeat/FeatureList.tsx`
 
-```javascript
-// Alarm-based polling (every 5 minutes)
-chrome.alarms.create('credits-check', { periodInMinutes: 5 });
+Add new props: `hasContext: boolean` and `onOpenContext: () => void`.
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== 'credits-check') return;
-  await checkCreditsOnActiveTab();
-});
+Render a small dismissible amber banner **whenever `hasContext` is false** -- regardless of whether features exist or not. This ensures users are nudged to add context before their first feature, so their first AI prompt is already context-aware.
 
-// Tab finished loading on Lovable
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url &&
-      (tab.url.includes('lovable.dev') || tab.url.includes('lovable.app'))) {
-    await checkCreditsOnTab(tabId);
-  }
-  // existing URL change logic...
-});
+- Copy: "0% Context. Add your Tech Stack/Vision to get smarter AI prompts."
+- Click action opens the Project Context sheet
+- Dismissible via a small X button (component-level `useState`, resets per session)
+- Positioned at the top of the feature list area, above both the empty state and the drag-drop list
 
-async function checkCreditsOnActiveTab() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id && tab.url &&
-        (tab.url.includes('lovable.dev') || tab.url.includes('lovable.app'))) {
-      await checkCreditsOnTab(tab.id);
-    }
-  } catch (e) { /* ignore */ }
-}
+**File:** `src/pages/Dashboard.tsx` -- pass the new props:
+- `hasContext={hasContext}`
+- `onOpenContext={() => setIsContextSheetOpen(true)}`
 
-async function checkCreditsOnTab(tabId) {
-  try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: 'GET_CREDITS' });
-    // Broadcast result to side panel
-    chrome.runtime.sendMessage({
-      type: 'CREDITS_UPDATE',
-      data: response
-    }).catch(() => {});
-  } catch (e) { /* content script not loaded */ }
-}
-```
+#### 3c. Feature List Empty State
 
-#### 3b. Content Script (`public/content.js`)
+**File:** `src/components/heartbeat/FeatureList.tsx`
 
-**Prompt submission fix**: Change `setupCreditsInvalidation` so that when a prompt is submitted, instead of setting status to `'none'`, it:
-1. Sets status to `'unknown'` (neutral/gray "Check Status" state)
-2. Sends `CREDITS_INVALIDATED` instead of `CREDITS_CONSUMED`
-3. Triggers a delayed re-check after 3 seconds by sending a self-message
-
-```javascript
-// In the Enter key and Send button listeners:
-localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify({
-  status: 'unknown',
-  date: today
-}));
-chrome.runtime.sendMessage({ type: 'CREDITS_INVALIDATED' });
-
-// Schedule a re-check after 3 seconds
-setTimeout(() => {
-  handleGetCredits((result) => {
-    chrome.runtime.sendMessage({
-      type: 'CREDITS_UPDATE',
-      data: result
-    }).catch(() => {});
-  });
-}, 3000);
-```
-
-#### 3c. React Hook (`src/hooks/useCredits.ts`)
-
-1. **Listen for `CREDITS_UPDATE` messages** from the background script (in addition to existing `CREDITS_CONSUMED` listener). When received, update state directly from the payload.
-
-2. **Listen for `CREDITS_INVALIDATED`**: Set `freeCreditsAvailable` to `null` (which renders as "Check Status" / gray / neutral).
-
-3. **Remove or reduce the 60-second interval** since background polling now handles periodic checks.
-
-```typescript
-// Updated message listener
-const handleMessage = (message: { type: string; data?: CreditsResponse }) => {
-  if (message.type === 'CREDITS_UPDATE' && message.data) {
-    setCredits({
-      freeCreditsAvailable: message.data.freeCreditsAvailable ?? null,
-      lastUpdated: new Date(),
-    });
-    setError(null);
-  }
-  if (message.type === 'CREDITS_INVALIDATED') {
-    // Go to neutral "Check Status" state, not red "None"
-    setCredits({
-      freeCreditsAvailable: null,
-      lastUpdated: new Date(),
-    });
-  }
-};
-```
-
-#### Manifest Update (`public/manifest.json`)
-
-Add `"alarms"` to the permissions array so the background script can use `chrome.alarms`.
+Replace the current minimal empty state with:
+- Headline: "Let's build something new."
+- Sub-headline: "Add your first feature to start the flow."
+- Prominent centered "+ Add Feature" button in brand purple that triggers `setIsAdding(true)`
 
 ---
 
-### Summary of All Files
+### 4. "Add Feature" Input Placeholder
+
+**File:** `src/components/heartbeat/FeatureList.tsx`
+
+Change `placeholder="Feature name..."` to `placeholder="What do you want to build?"`
+
+---
+
+### 5. "Edit Feature" and Prompt Generation UI
+
+**File:** `src/components/heartbeat/FeatureDetailSheet.tsx`
+
+#### 5a. Instructional Copy (Conditional)
+
+Add new prop: `totalFeatureCount: number`.
+
+When `totalFeatureCount < 5`, render a subtle bordered text block above the prompt textarea:
+- Copy: "Write/paste your own detailed prompt, or click Generate with AI to let us write it for you! You can also paste a screenshot for context."
+- Style: `text-xs text-muted-foreground` in a light bordered box
+
+#### 5b. Footer Copy (Conditional)
+
+When `feature.prompt` is not empty AND in extension mode, render helper text above the Inject button:
+- Copy: "Ready? Inject this prompt directly into Lovable to start building."
+- Style: `text-xs text-muted-foreground text-center`
+
+**File:** `src/pages/Dashboard.tsx` -- pass `totalFeatureCount={activeProject.features.length}` to `FeatureDetailSheet`.
+
+---
+
+### Technical Summary
 
 | File | Changes |
 |------|---------|
-| `src/hooks/useChromeMessaging.ts` | Add `create` to chrome.tabs type; update `navigateActiveTab` for restricted tabs |
-| `src/pages/Dashboard.tsx` | Load button for web + extension; remove disabled; context button "Add Context" label; import Plus |
-| `public/background.js` | Add alarms polling, tab-complete credits check, helper functions |
-| `public/content.js` | Change invalidation from "none" to "unknown", add delayed re-check |
-| `src/hooks/useCredits.ts` | Listen for CREDITS_UPDATE and CREDITS_INVALIDATED, remove 60s interval |
-| `public/manifest.json` | Add "alarms" permission |
+| `src/pages/Dashboard.tsx` | Environment-aware empty states with GradientLogo and Globe icon; pass `hasContext`, `onOpenContext`, `totalFeatureCount` props to child components |
+| `src/components/heartbeat/NewProjectDialog.tsx` | Gradient heart icon, "Let's start the LovaLog!" headline, "Start Logging" purple button, ghost cancel button (conditional on suggestedName) |
+| `src/components/heartbeat/ProjectSelector.tsx` | Solid brand purple background and pulse animation on Link button |
+| `src/components/heartbeat/FeatureList.tsx` | Context nudge banner (shown even with zero features), new empty state copy and button, "What do you want to build?" placeholder, two new props |
+| `src/components/heartbeat/FeatureDetailSheet.tsx` | Conditional instructional copy above textarea when fewer than 5 features, conditional footer copy above inject button, new `totalFeatureCount` prop |
 
