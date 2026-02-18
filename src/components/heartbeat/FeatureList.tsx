@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
-import { Plus } from 'lucide-react';
+import { Plus, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
@@ -24,6 +24,8 @@ interface FeatureListProps {
   onInjectPrompt: (featureId: string) => void;
   isCompact?: boolean;
   isExtension?: boolean;
+  hasContext?: boolean;
+  onOpenContext?: () => void;
 }
 
 export function FeatureList({
@@ -38,9 +40,12 @@ export function FeatureList({
   onInjectPrompt,
   isCompact = false,
   isExtension = false,
+  hasContext = true,
+  onOpenContext,
 }: FeatureListProps) {
   const [newFeatureTitle, setNewFeatureTitle] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [contextNudgeDismissed, setContextNudgeDismissed] = useState(false);
 
   // Memoized sorted arrays using shared utilities
   const activeTasks = useMemo(
@@ -95,12 +100,32 @@ export function FeatureList({
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {/* Context Nudge Banner */}
+        {!hasContext && !contextNudgeDismissed && (
+          <button
+            onClick={onOpenContext}
+            className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-left group hover:bg-amber-500/15 transition-colors"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-xs text-amber-200/80 flex-1">
+              0% Context. Add your Tech Stack/Vision to get smarter AI prompts.
+            </span>
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); setContextNudgeDismissed(true); }}
+              className="shrink-0 p-0.5 rounded hover:bg-amber-500/20"
+            >
+              <X className="w-3 h-3 text-amber-500/60" />
+            </span>
+          </button>
+        )}
+
         {isAdding && (
           <div className="flex items-center gap-2 p-2 rounded-lg border border-brand-purple bg-brand-purple/10">
             <Input
               value={newFeatureTitle}
               onChange={(e) => setNewFeatureTitle(e.target.value)}
-              placeholder="Feature name..."
+              placeholder="What do you want to build?"
               className="h-8 text-sm"
               autoFocus
               onKeyDown={(e) => {
@@ -118,14 +143,15 @@ export function FeatureList({
         )}
 
         {features.length === 0 && !isAdding ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground text-sm">No features yet</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+            <h3 className="text-base font-semibold text-foreground">Let's build something new.</h3>
+            <p className="text-sm text-muted-foreground">Add your first feature to start the flow.</p>
             <Button
-              variant="link"
-              className="text-brand-purple mt-2"
+              className="bg-brand-purple hover:bg-brand-purple/90 text-white"
               onClick={() => setIsAdding(true)}
             >
-              Add your first feature
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Feature
             </Button>
           </div>
         ) : (

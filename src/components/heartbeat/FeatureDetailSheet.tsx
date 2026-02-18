@@ -30,6 +30,7 @@ interface FeatureDetailSheetProps {
   onUpdate: (updates: Partial<Feature>) => void;
   onInject: () => Promise<boolean>;
   isExtension?: boolean;
+  totalFeatureCount?: number;
 }
 
 export function FeatureDetailSheet({
@@ -41,6 +42,7 @@ export function FeatureDetailSheet({
   onUpdate,
   onInject,
   isExtension = false,
+  totalFeatureCount = 0,
 }: FeatureDetailSheetProps) {
   const [localTitle, setLocalTitle] = useState('');
   const [localPrompt, setLocalPrompt] = useState('');
@@ -320,6 +322,14 @@ export function FeatureDetailSheet({
                     onChange={handleFileSelect}
                   />
                 </div>
+
+                {/* Instructional copy for new users */}
+                {totalFeatureCount < 5 && (
+                  <div className="p-2.5 rounded-md border border-border bg-muted/50 text-xs text-muted-foreground leading-relaxed">
+                    Write/paste your own detailed prompt, or click <span className="text-brand-purple font-medium">Generate with AI</span> to let us write it for you! You can also paste a screenshot for context.
+                  </div>
+                )}
+
                 <textarea
                   ref={textareaRef}
                   value={localPrompt}
@@ -374,7 +384,12 @@ Example:
 
             {/* Inject Button - Extension only */}
             {isExtension ? (
-              <div className="pt-4 border-t border-border">
+              <div className="pt-4 border-t border-border space-y-2">
+                {localPrompt.trim() && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Ready? Inject this prompt directly into Lovable to start building.
+                  </p>
+                )}
                 {attachedImage ? (
                   // Split button when image is attached
                   <div className="flex gap-1">

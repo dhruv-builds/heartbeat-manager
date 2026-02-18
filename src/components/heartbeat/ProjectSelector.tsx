@@ -157,7 +157,10 @@ export function ProjectSelector({
           <Button
             size="sm"
             variant={inlineAction.type === 'load' ? 'default' : 'secondary'}
-            className="shrink-0 h-9 px-3 font-medium"
+            className={cn(
+              "shrink-0 h-9 px-3 font-medium",
+              inlineAction.type === 'link' && "bg-brand-purple hover:bg-brand-purple/90 text-white animate-pulse"
+            )}
             onClick={inlineAction.onAction}
             disabled={inlineAction.disabled}
             title={inlineAction.type === 'load' 
