@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Heart } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface NewProjectDialogProps {
   open: boolean;
@@ -46,8 +47,13 @@ export function NewProjectDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Heart className="w-5 h-5 text-heartbeat fill-heartbeat" />
-            {suggestedName ? 'Start Heartbeat' : 'New Project'}
+            <Heart className={cn(
+              "w-5 h-5",
+              suggestedName
+                ? "gradient-brand-text fill-current"
+                : "text-heartbeat fill-heartbeat"
+            )} />
+            {suggestedName ? "Let's start the LovaLog!" : 'New Project'}
           </DialogTitle>
           <DialogDescription>
             {suggestedName
@@ -69,14 +75,14 @@ export function NewProjectDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             onClick={handleCreate}
-            className="bg-heartbeat hover:bg-heartbeat/90 text-white"
+            className="bg-brand-purple hover:bg-brand-purple/90 text-white"
           >
-            Create Project
+            {suggestedName ? 'Start Logging' : 'Create Project'}
           </Button>
         </DialogFooter>
       </DialogContent>

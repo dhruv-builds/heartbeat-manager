@@ -10,8 +10,9 @@ import { CreditsBadge } from '@/components/heartbeat/CreditsBadge';
 import { ProjectContextSheet } from '@/components/heartbeat/ProjectContextSheet';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GradientLogo } from '@/components/ui/GradientLogo';
 
 export default function Dashboard() {
   const {
@@ -334,23 +335,41 @@ export default function Dashboard() {
             onReorderFeatures={(features) => reorderFeatures(activeProject.id, features)}
             onInjectPrompt={handleInjectPrompt}
             isExtension={isExtension}
+            hasContext={hasContext}
+            onOpenContext={() => setIsContextSheetOpen(true)}
           />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <p className="text-muted-foreground mb-4">
-              {projects.length === 0
-                ? 'Create your first project to get started'
-                : 'Select a project to manage features'}
-            </p>
-            {projects.length === 0 && (
-              <button
-                onClick={() => setShowNewProjectDialog(true)}
-                className="text-brand-purple hover:underline"
-              >
-                Create a project
-              </button>
+          <div className="text-center space-y-4">
+            <GradientLogo size="sm" showText={false} className="justify-center" />
+            {isOnLovableHost ? (
+              <>
+                <h2 className="text-lg font-semibold text-foreground">Ready to build?</h2>
+                <p className="text-sm text-muted-foreground max-w-[240px] mx-auto">
+                  Select a project from Lovable to start tracking features.
+                </p>
+              </>
+            ) : (
+              <>
+                <Globe className="w-6 h-6 text-muted-foreground mx-auto" />
+                <h2 className="text-lg font-semibold text-foreground">Welcome to LovaLog</h2>
+                <p className="text-sm text-muted-foreground max-w-[240px] mx-auto">
+                  Navigate to a project on Lovable to create your first LovaLog.
+                </p>
+                <Button
+                  className="bg-brand-purple hover:bg-brand-purple/90 text-white"
+                  onClick={() => {
+                    if (isExtension) {
+                      navigateActiveTab('https://lovable.dev/');
+                    } else {
+                      window.open('https://lovable.dev/', '_blank');
+                    }
+                  }}
+                >
+                  Go to Lovable
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -369,6 +388,7 @@ export default function Dashboard() {
         }}
         onInject={() => selectedFeatureId ? handleInjectPrompt(selectedFeatureId) : Promise.resolve(false)}
         isExtension={isExtension}
+        totalFeatureCount={activeProject?.features.length || 0}
       />
 
       <NewProjectDialog
