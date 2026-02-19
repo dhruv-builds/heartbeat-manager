@@ -1,127 +1,90 @@
 
 
-## Comprehensive Onboarding Flow for LovaLog
+## Branding Updates and Smart Project Auto-Linking
 
-This plan implements 5 areas of onboarding improvements with one modification from the original: the "Empty Context" nudge banner will appear even when the feature list is empty (before any features are added).
-
----
-
-### 1. Empty State Logic (No Active Project)
-
-**File:** `src/pages/Dashboard.tsx`
-
-Replace the current generic empty state (the block that shows "Create your first project" / "Select a project") with two environment-aware scenarios:
-
-**Scenario A -- Not on Lovable (or Web Dashboard):**
-- `GradientLogo` component (small)
-- `Globe` Lucide icon as browser illustration
-- Headline: "Welcome to LovaLog"
-- Body: "Navigate to a project on Lovable to create your first LovaLog."
-- Primary button: "Go to Lovable" -- extension calls `navigateActiveTab('https://lovable.dev/')`, web opens new tab
-
-**Scenario B -- On Lovable (Extension detects Lovable host):**
-- `GradientLogo` component (small)
-- Headline: "Ready to build?"
-- Body: "Select a project from Lovable to start tracking features."
-
-Detection uses the existing `isOnLovableHost` boolean from `useChromeMessaging`. Web dashboard defaults to Scenario A.
+Two main changes: replace all Lucide ClipboardCheck icons with the custom `app-logo.png` asset, and auto-link Lovable projects when creating a new project from the extension.
 
 ---
 
-### 2. "Link Project" Modal Redesign
+### 1. Replace GradientLogo Icon with Custom Logo
 
-**File:** `src/components/heartbeat/NewProjectDialog.tsx`
+**File:** `src/components/ui/GradientLogo.tsx`
 
-When `suggestedName` is present (Lovable project detected):
+Replace the `ClipboardCheck` Lucide icon inside the gradient container with an `<img>` tag pointing to `/app-logo.png`. The image sizes will map to the existing size config, replacing the icon size with appropriate image dimensions. Remove the `ClipboardCheck` import.
 
-| Element | Current | New |
-|---------|---------|-----|
-| Headline | "Start Heartbeat" or similar | "Let's start the LovaLog!" |
-| Icon | White Heart with fill | Heart icon with brand gradient class (pink/orange) |
-| Body | Keep as-is | Keep as-is |
-| Primary button label | "Create Project" | "Start Logging" |
-| Primary button style | Current | Solid brand purple background, white text |
-| Cancel button | `variant="outline"` | `variant="ghost"` with muted text |
+This single change propagates everywhere `GradientLogo` is used:
+- Auth screen (Login page)
+- Landing page navbar, footer
+- Dashboard empty states
 
-When `suggestedName` is NOT present (manual creation), keep existing "New Project" title and "Create Project" label.
+### 2. Remove Globe Icon from Dashboard Empty State
 
----
+**File:** `src/pages/Dashboard.tsx` (line 355)
 
-### 3. Main Project View Updates
+Remove the `<Globe>` icon from the "Not on Lovable" empty state (Scenario A). The `GradientLogo` already serves as the visual. Remove the `Globe` import if no longer needed.
 
-#### 3a. Link Button Styling
+### 3. Smart Auto-Link on Project Create
 
-**File:** `src/components/heartbeat/ProjectSelector.tsx`
+**File:** `src/hooks/useProjects.ts` -- update `createProject`
 
-When `inlineAction.type === 'link'`, apply:
-- Solid brand purple background: `bg-[hsl(var(--brand-purple))] text-white`
-- Pulse animation: `animate-pulse`
+Update the `createProject` callback to:
 
-#### 3b. "Empty Context" Nudge Banner (UPDATED)
+1. Before inserting, check if we're in the extension environment (`typeof chrome !== 'undefined' && chrome.tabs`).
+2. If yes, query the active tab URL via `chrome.tabs.query({ active: true, currentWindow: true })`.
+3. Parse the URL with a regex for `https://lovable.dev/projects/<UUID>`.
+4. If a match is found, include `lovable_project_id` (the UUID) and `lovable_project_url` (the canonical URL) in the insert query.
+5. If no match, insert with `null` for both fields (current behavior).
+6. Update the optimistic local state to include these fields on the new project object.
 
-**File:** `src/components/heartbeat/FeatureList.tsx`
-
-Add new props: `hasContext: boolean` and `onOpenContext: () => void`.
-
-Render a small dismissible amber banner **whenever `hasContext` is false** -- regardless of whether features exist or not. This ensures users are nudged to add context before their first feature, so their first AI prompt is already context-aware.
-
-- Copy: "0% Context. Add your Tech Stack/Vision to get smarter AI prompts."
-- Click action opens the Project Context sheet
-- Dismissible via a small X button (component-level `useState`, resets per session)
-- Positioned at the top of the feature list area, above both the empty state and the drag-drop list
-
-**File:** `src/pages/Dashboard.tsx` -- pass the new props:
-- `hasContext={hasContext}`
-- `onOpenContext={() => setIsContextSheetOpen(true)}`
-
-#### 3c. Feature List Empty State
-
-**File:** `src/components/heartbeat/FeatureList.tsx`
-
-Replace the current minimal empty state with:
-- Headline: "Let's build something new."
-- Sub-headline: "Add your first feature to start the flow."
-- Prominent centered "+ Add Feature" button in brand purple that triggers `setIsAdding(true)`
+No toast changes needed here -- the existing flow handles project creation feedback. The "Link" button is already hidden when `lovable_project_id` matches `detectedLovableId` (see `inlineAction` logic in Dashboard.tsx lines 123-149 -- when `selectedLovableId === detectedLovableId`, it returns `null`, hiding the button). This already covers the "hide Link button if already linked" requirement.
 
 ---
 
-### 4. "Add Feature" Input Placeholder
+### Technical Details
 
-**File:** `src/components/heartbeat/FeatureList.tsx`
+**GradientLogo.tsx changes:**
+- Remove `ClipboardCheck` import
+- Replace the icon element with `<img src="/app-logo.png" alt="LovaLog" className="object-contain" style={{ width: config.icon, height: config.icon }} />`
+- The gradient background container remains unchanged
 
-Change `placeholder="Feature name..."` to `placeholder="What do you want to build?"`
+**useProjects.ts `createProject` changes:**
+```typescript
+// Before insert, detect Lovable project from active tab
+let lovableProjectId: string | null = null;
+let lovableProjectUrl: string | null = null;
 
----
+if (typeof chrome !== 'undefined' && chrome?.tabs?.query) {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const url = tabs[0]?.url || '';
+    const match = url.match(/^https:\/\/lovable\.dev\/projects\/([0-9a-fA-F-]{36})/);
+    if (match) {
+      lovableProjectId = match[1];
+      lovableProjectUrl = `https://lovable.dev/projects/${match[1]}`;
+    }
+  } catch {}
+}
 
-### 5. "Edit Feature" and Prompt Generation UI
+// Include in insert
+const { data, error } = await (supabase as any)
+  .from('projects')
+  .insert({
+    name,
+    user_id: user.id,
+    lovable_project_id: lovableProjectId,
+    lovable_project_url: lovableProjectUrl,
+  })
+  .select()
+  .single();
+```
 
-**File:** `src/components/heartbeat/FeatureDetailSheet.tsx`
+The optimistic `newProject` object will also include `lovable_project_id` and `lovable_project_url` from the returned data.
 
-#### 5a. Instructional Copy (Conditional)
+### Summary of Files Changed
 
-Add new prop: `totalFeatureCount: number`.
-
-When `totalFeatureCount < 5`, render a subtle bordered text block above the prompt textarea:
-- Copy: "Write/paste your own detailed prompt, or click Generate with AI to let us write it for you! You can also paste a screenshot for context."
-- Style: `text-xs text-muted-foreground` in a light bordered box
-
-#### 5b. Footer Copy (Conditional)
-
-When `feature.prompt` is not empty AND in extension mode, render helper text above the Inject button:
-- Copy: "Ready? Inject this prompt directly into Lovable to start building."
-- Style: `text-xs text-muted-foreground text-center`
-
-**File:** `src/pages/Dashboard.tsx` -- pass `totalFeatureCount={activeProject.features.length}` to `FeatureDetailSheet`.
-
----
-
-### Technical Summary
-
-| File | Changes |
-|------|---------|
-| `src/pages/Dashboard.tsx` | Environment-aware empty states with GradientLogo and Globe icon; pass `hasContext`, `onOpenContext`, `totalFeatureCount` props to child components |
-| `src/components/heartbeat/NewProjectDialog.tsx` | Gradient heart icon, "Let's start the LovaLog!" headline, "Start Logging" purple button, ghost cancel button (conditional on suggestedName) |
-| `src/components/heartbeat/ProjectSelector.tsx` | Solid brand purple background and pulse animation on Link button |
-| `src/components/heartbeat/FeatureList.tsx` | Context nudge banner (shown even with zero features), new empty state copy and button, "What do you want to build?" placeholder, two new props |
-| `src/components/heartbeat/FeatureDetailSheet.tsx` | Conditional instructional copy above textarea when fewer than 5 features, conditional footer copy above inject button, new `totalFeatureCount` prop |
+| File | Change |
+|------|--------|
+| `src/components/ui/GradientLogo.tsx` | Replace ClipboardCheck with `<img src="/app-logo.png">` |
+| `src/pages/Dashboard.tsx` | Remove Globe icon from empty state |
+| `src/hooks/useProjects.ts` | Auto-detect and auto-link Lovable project on create |
 
