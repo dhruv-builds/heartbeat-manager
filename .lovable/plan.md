@@ -1,90 +1,72 @@
 
 
-## Branding Updates and Smart Project Auto-Linking
+## Batch Merge Feature Implementation
 
-Two main changes: replace all Lucide ClipboardCheck icons with the custom `app-logo.png` asset, and auto-link Lovable projects when creating a new project from the extension.
-
----
-
-### 1. Replace GradientLogo Icon with Custom Logo
-
-**File:** `src/components/ui/GradientLogo.tsx`
-
-Replace the `ClipboardCheck` Lucide icon inside the gradient container with an `<img>` tag pointing to `/app-logo.png`. The image sizes will map to the existing size config, replacing the icon size with appropriate image dimensions. Remove the `ClipboardCheck` import.
-
-This single change propagates everywhere `GradientLogo` is used:
-- Auth screen (Login page)
-- Landing page navbar, footer
-- Dashboard empty states
-
-### 2. Remove Globe Icon from Dashboard Empty State
-
-**File:** `src/pages/Dashboard.tsx` (line 355)
-
-Remove the `<Globe>` icon from the "Not on Lovable" empty state (Scenario A). The `GradientLogo` already serves as the visual. Remove the `Globe` import if no longer needed.
-
-### 3. Smart Auto-Link on Project Create
-
-**File:** `src/hooks/useProjects.ts` -- update `createProject`
-
-Update the `createProject` callback to:
-
-1. Before inserting, check if we're in the extension environment (`typeof chrome !== 'undefined' && chrome.tabs`).
-2. If yes, query the active tab URL via `chrome.tabs.query({ active: true, currentWindow: true })`.
-3. Parse the URL with a regex for `https://lovable.dev/projects/<UUID>`.
-4. If a match is found, include `lovable_project_id` (the UUID) and `lovable_project_url` (the canonical URL) in the insert query.
-5. If no match, insert with `null` for both fields (current behavior).
-6. Update the optimistic local state to include these fields on the new project object.
-
-No toast changes needed here -- the existing flow handles project creation feedback. The "Link" button is already hidden when `lovable_project_id` matches `detectedLovableId` (see `inlineAction` logic in Dashboard.tsx lines 123-149 -- when `selectedLovableId === detectedLovableId`, it returns `null`, hiding the button). This already covers the "hide Link button if already linked" requirement.
+Implementing the full merge UX with progressive disclosure, selection mode, edge function call, undo toast, and transparent overlay cancellation.
 
 ---
 
-### Technical Details
+### Files Changed (5 files)
 
-**GradientLogo.tsx changes:**
-- Remove `ClipboardCheck` import
-- Replace the icon element with `<img src="/app-logo.png" alt="LovaLog" className="object-contain" style={{ width: config.icon, height: config.icon }} />`
-- The gradient background container remains unchanged
+#### 1. `src/types/heartbeat.ts`
+- Add optional `is_merged?: boolean` field to the `Feature` interface (client-side flag for badge display).
 
-**useProjects.ts `createProject` changes:**
-```typescript
-// Before insert, detect Lovable project from active tab
-let lovableProjectId: string | null = null;
-let lovableProjectUrl: string | null = null;
+#### 2. `src/components/heartbeat/FeatureItem.tsx`
+- Add new optional props: `mergeMode`, `mergeSelected`, `mergeDisabled`, `onMergeToggle`, `isMerged`.
+- Render a slide-in `Checkbox` (animated width 0 to 5, `transition-all duration-200`) to the left of the drag handle when `mergeMode && !isCompleted`.
+- When `mergeSelected`, add a purple ring highlight to the card.
+- When `isMerged`, show a small `Merge` Lucide icon next to the title.
+- In merge mode, clicking the card toggles selection instead of opening the detail sheet.
+- Completed items never show checkboxes.
+- Cards get `relative z-40` to sit above the overlay.
 
-if (typeof chrome !== 'undefined' && chrome?.tabs?.query) {
-  try {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const url = tabs[0]?.url || '';
-    const match = url.match(/^https:\/\/lovable\.dev\/projects\/([0-9a-fA-F-]{36})/);
-    if (match) {
-      lovableProjectId = match[1];
-      lovableProjectUrl = `https://lovable.dev/projects/${match[1]}`;
-    }
-  } catch {}
-}
+#### 3. `src/components/heartbeat/FeatureList.tsx`
+Major changes:
 
-// Include in insert
-const { data, error } = await (supabase as any)
-  .from('projects')
-  .insert({
-    name,
-    user_id: user.id,
-    lovable_project_id: lovableProjectId,
-    lovable_project_url: lovableProjectUrl,
-  })
-  .select()
-  .single();
-```
+**New state:** `mergeMode`, `selectedForMerge` (string array, max 3), `isMerging`.
 
-The optimistic `newProject` object will also include `lovable_project_id` and `lovable_project_url` from the returned data.
+**New props:** `projectId`, `onCreateMergedFeature`.
 
-### Summary of Files Changed
+**Header merge button:**
+- Only shown when `backlogCount >= 2`.
+- When not in merge mode: ghost `Layers` icon button with tooltip "Merge Tasks".
+- When in merge mode with fewer than 2 selected: same style, plus an `X` cancel button.
+- When 2+ selected: solid brand purple with `animate-pulse` ring effect + label "Merge". Clicking triggers `handleMerge`.
+- Sits to the left of the Add button for space efficiency.
 
-| File | Change |
-|------|--------|
-| `src/components/ui/GradientLogo.tsx` | Replace ClipboardCheck with `<img src="/app-logo.png">` |
-| `src/pages/Dashboard.tsx` | Remove Globe icon from empty state |
-| `src/hooks/useProjects.ts` | Auto-detect and auto-link Lovable project on create |
+**Transparent overlay:**
+- When `mergeMode` is active, render `<div className="fixed inset-0 z-30 bg-transparent" onClick={exitMergeMode} />`.
+- Header and feature cards are `z-40` to remain clickable above the overlay.
+
+**Selection logic:**
+- `toggleMergeSelection`: add/remove from array, capped at 3.
+- Passes `mergeDisabled` to items when 3 are already selected.
+
+**Merge execution (`handleMerge`):**
+1. Show "Merging..." loading state.
+2. Call `supabase.functions.invoke('merge-features')` on the external Supabase with selected features' id, title, prompt, status.
+3. Insert new merged task via `onCreateMergedFeature` (uses first selected task's image).
+4. Delete old selected tasks via `onDeleteFeature`.
+5. Exit merge mode.
+6. Show "Undo" toast with an action button that deletes the merged feature and re-inserts old ones as new rows (with `now()` timestamps, per user's MVP preference).
+
+#### 4. `src/hooks/useProjects.ts`
+- Add `createMergedFeature` callback that inserts a feature with provided title, prompt, status, and image_url. Sets `is_merged: true` on the local Feature object. Returns the new Feature.
+- Export it from the hook's return object.
+
+#### 5. `src/pages/Dashboard.tsx`
+- Destructure `createMergedFeature` from `useProjects()`.
+- Pass two new props to `FeatureList`:
+  - `projectId={activeProject.id}`
+  - `onCreateMergedFeature={(data) => createMergedFeature(activeProject.id, data)}`
+
+---
+
+### Key Design Decisions
+
+- **Overlay approach** (per user request): A `fixed inset-0 z-30 bg-transparent` div handles click-outside cancellation cleanly. Cards and header sit at `z-40`.
+- **Undo creates new rows** (per user's MVP preference): Old features are re-inserted with fresh timestamps rather than trying to restore `created_at`.
+- **Edge function** is called on the external Supabase via the existing `supabase` client from `src/integrations/supabase/client.ts`.
+- **Max 3 selections**, checkboxes disabled beyond that. Completed tasks excluded.
+- **`is_merged`** is a client-side-only flag (not persisted in DB) -- it marks the merged task with a badge icon until the next page load/refetch.
 
