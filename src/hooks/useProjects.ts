@@ -459,6 +459,58 @@ export function useProjects() {
     }
   }, []);
 
+  const createMergedFeature = useCallback(async (
+    projectId: string,
+    data: { title: string; prompt: string; status: string; image_url?: string | null }
+  ): Promise<Feature | null> => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return null;
+
+    try {
+      const { data: row, error } = await (supabase as any)
+        .from('features')
+        .insert({
+          project_id: projectId,
+          title: data.title,
+          status: data.status,
+          prompt: data.prompt,
+          image_url: data.image_url || null,
+          order: project.features.length,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!row) return null;
+
+      const newFeature: Feature = {
+        id: row.id,
+        project_id: row.project_id,
+        title: row.title,
+        status: row.status as FeatureStatus,
+        prompt: row.prompt,
+        order: row.order,
+        image_url: row.image_url,
+        is_merged: true,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? { ...p, features: [...p.features, newFeature], updated_at: new Date().toISOString() }
+            : p
+        )
+      );
+
+      return newFeature;
+    } catch (error) {
+      console.error('Error creating merged feature:', error);
+      return null;
+    }
+  }, [projects]);
+
   const updateProjectContext = useCallback(async (
     projectId: string,
     content: string,
@@ -512,6 +564,7 @@ export function useProjects() {
     findProjectByLovableId,
     linkProject,
     updateProjectContext,
+    createMergedFeature,
     refetch: fetchProjects,
   };
 }

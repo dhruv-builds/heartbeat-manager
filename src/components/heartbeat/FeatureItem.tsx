@@ -1,6 +1,7 @@
 import { Draggable } from '@hello-pangea/dnd';
-import { GripVertical, Copy, Trash2, Zap } from 'lucide-react';
+import { GripVertical, Copy, Trash2, Zap, Merge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Feature } from '@/types/heartbeat';
 import { StatusBadge, getNextStatus } from './StatusBadge';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,11 @@ interface FeatureItemProps {
   onDelete: () => void;
   onInject: () => void;
   showInjectButton?: boolean;
+  mergeMode?: boolean;
+  mergeSelected?: boolean;
+  mergeDisabled?: boolean;
+  onMergeToggle?: () => void;
+  isMerged?: boolean;
 }
 
 export function FeatureItem({
@@ -29,10 +35,23 @@ export function FeatureItem({
   onDelete,
   onInject,
   showInjectButton = false,
+  mergeMode = false,
+  mergeSelected = false,
+  mergeDisabled = false,
+  onMergeToggle,
+  isMerged = false,
 }: FeatureItemProps) {
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onStatusChange(getNextStatus(feature.status));
+  };
+
+  const handleCardClick = () => {
+    if (mergeMode && !isCompleted && onMergeToggle) {
+      onMergeToggle();
+    } else {
+      onSelect();
+    }
   };
 
   return (
@@ -42,18 +61,34 @@ export function FeatureItem({
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            'group p-3 rounded-lg border transition-all',
+            'group p-3 rounded-lg border transition-all relative z-40',
             'hover:border-brand-purple/50',
-            isSelected
+            isSelected && !mergeMode
               ? 'border-brand-purple bg-brand-purple/10'
               : 'border-border bg-card',
+            mergeSelected && 'ring-2 ring-brand-purple border-brand-purple bg-brand-purple/10',
             snapshot.isDragging && 'shadow-lg',
             isCompleted && 'opacity-60'
           )}
-          onClick={onSelect}
+          onClick={handleCardClick}
         >
-          {/* Row 1: Drag handle + Full Title */}
+          {/* Row 1: Checkbox + Drag handle + Full Title */}
           <div className="flex items-start gap-2">
+            {/* Slide-in checkbox for merge mode */}
+            <div
+              className={cn(
+                'overflow-hidden transition-all duration-200 flex items-center',
+                mergeMode && !isCompleted ? 'w-5 opacity-100' : 'w-0 opacity-0'
+              )}
+            >
+              <Checkbox
+                checked={mergeSelected}
+                disabled={mergeDisabled && !mergeSelected}
+                onCheckedChange={() => onMergeToggle?.()}
+                onClick={(e) => e.stopPropagation()}
+                className="data-[state=checked]:bg-brand-purple data-[state=checked]:border-brand-purple"
+              />
+            </div>
             <div
               {...provided.dragHandleProps}
               className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
@@ -61,10 +96,13 @@ export function FeatureItem({
               <GripVertical className="w-4 h-4" />
             </div>
             <h3 className={cn(
-              "flex-1 font-semibold text-foreground break-words text-left",
+              "flex-1 font-semibold text-foreground break-words text-left flex items-center gap-1.5",
               isCompleted && "line-through"
             )}>
               {feature.title}
+              {isMerged && (
+                <Merge className="w-3.5 h-3.5 text-brand-purple shrink-0" />
+              )}
             </h3>
           </div>
 

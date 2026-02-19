@@ -34,6 +34,7 @@ export default function Dashboard() {
     findProjectByLovableId,
     linkProject,
     updateProjectContext,
+    createMergedFeature,
   } = useProjects();
 
   const { 
@@ -337,6 +338,8 @@ export default function Dashboard() {
             isExtension={isExtension}
             hasContext={hasContext}
             onOpenContext={() => setIsContextSheetOpen(true)}
+            projectId={activeProject.id}
+            onCreateMergedFeature={(data) => createMergedFeature(activeProject.id, data)}
           />
         </div>
       ) : (
