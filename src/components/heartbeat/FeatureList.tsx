@@ -1,16 +1,20 @@
 import { useState, useMemo } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
-import { Plus, X, AlertTriangle } from 'lucide-react';
+import { Plus, X, AlertTriangle, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Feature } from '@/types/heartbeat';
 import { FeatureItem } from './FeatureItem';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   getActiveFeatures,
   getCompletedFeatures,
   sortActiveFeatures,
   sortCompletedFeatures,
 } from '@/lib/featureSorting';
+import { cn } from '@/lib/utils';
 
 interface FeatureListProps {
   features: Feature[];
@@ -26,6 +30,13 @@ interface FeatureListProps {
   isExtension?: boolean;
   hasContext?: boolean;
   onOpenContext?: () => void;
+  projectId?: string;
+  onCreateMergedFeature?: (data: {
+    title: string;
+    prompt: string;
+    status: string;
+    image_url?: string | null;
+  }) => Promise<Feature | null>;
 }
 
 export function FeatureList({
@@ -42,10 +53,17 @@ export function FeatureList({
   isExtension = false,
   hasContext = true,
   onOpenContext,
+  projectId,
+  onCreateMergedFeature,
 }: FeatureListProps) {
   const [newFeatureTitle, setNewFeatureTitle] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [contextNudgeDismissed, setContextNudgeDismissed] = useState(false);
+
+  // Merge mode state
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
+  const [isMerging, setIsMerging] = useState(false);
 
   // Memoized sorted arrays using shared utilities
   const activeTasks = useMemo(
@@ -58,11 +76,118 @@ export function FeatureList({
     [features]
   );
 
+  const backlogCount = useMemo(
+    () => features.filter(f => f.status === 'backlog').length,
+    [features]
+  );
+
   // Combined list for drag-drop (active first, then completed)
   const allSortedFeatures = useMemo(
     () => [...activeTasks, ...completedTasks],
     [activeTasks, completedTasks]
   );
+
+  const exitMergeMode = () => {
+    setMergeMode(false);
+    setSelectedForMerge([]);
+  };
+
+  const toggleMergeSelection = (featureId: string) => {
+    setSelectedForMerge(prev => {
+      if (prev.includes(featureId)) return prev.filter(id => id !== featureId);
+      if (prev.length >= 3) return prev;
+      return [...prev, featureId];
+    });
+  };
+
+  const handleMerge = async () => {
+    if (selectedForMerge.length < 2 || !projectId || !onCreateMergedFeature) return;
+    setIsMerging(true);
+
+    const selectedFeatures = features.filter(f => selectedForMerge.includes(f.id));
+    // Store for undo
+    const oldFeatures = [...selectedFeatures];
+
+    try {
+      const { data, error } = await supabase.functions.invoke('merge-features', {
+        body: {
+          features: selectedFeatures.map(f => ({
+            id: f.id,
+            title: f.title,
+            prompt: f.prompt,
+            status: f.status,
+          })),
+        },
+      });
+
+      if (error) throw error;
+
+      const { title, prompt, status } = data;
+      const firstImage = selectedFeatures[0]?.image_url || null;
+
+      const newFeature = await onCreateMergedFeature({
+        title,
+        prompt,
+        status,
+        image_url: firstImage,
+      });
+
+      if (newFeature) {
+        for (const id of selectedForMerge) {
+          onDeleteFeature(id);
+        }
+
+        exitMergeMode();
+
+        toast({
+          title: 'Tasks merged!',
+          description: `${selectedForMerge.length} tasks → "${title}"`,
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  // Delete the merged feature
+                  onDeleteFeature(newFeature.id);
+                  // Re-insert old features as new rows
+                  for (const old of oldFeatures) {
+                    await (supabase as any)
+                      .from('features')
+                      .insert({
+                        project_id: projectId,
+                        title: old.title,
+                        status: old.status,
+                        prompt: old.prompt,
+                        image_url: old.image_url || null,
+                        order: old.order,
+                      });
+                  }
+                  // Trigger a refetch by creating and immediately removing a dummy — 
+                  // or just reload. For MVP, window location doesn't change so we can
+                  // just call location.reload() but that's heavy. Instead we'll just toast.
+                  toast({ title: 'Merge undone', description: 'Original tasks restored. Refresh to see them.' });
+                } catch {
+                  toast({ title: 'Undo failed', variant: 'destructive' });
+                }
+              }}
+            >
+              Undo
+            </Button>
+          ),
+        });
+      }
+    } catch (err) {
+      console.error('Merge failed:', err);
+      toast({
+        title: 'Merge failed',
+        description: 'Could not merge tasks. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMerging(false);
+    }
+  };
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -82,21 +207,82 @@ export function FeatureList({
     }
   };
 
+  const readyToMerge = selectedForMerge.length >= 2;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      {/* Transparent overlay for click-outside cancellation */}
+      {mergeMode && (
+        <div
+          className="fixed inset-0 z-30 bg-transparent"
+          onClick={exitMergeMode}
+        />
+      )}
+
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border relative z-40">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Features
         </h2>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
-          onClick={() => setIsAdding(true)}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Merge button */}
+          {backlogCount >= 2 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    {mergeMode && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={exitMergeMode}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={readyToMerge ? 'default' : 'ghost'}
+                      className={cn(
+                        'h-7',
+                        !mergeMode && 'text-muted-foreground hover:text-foreground',
+                        readyToMerge && 'bg-brand-purple hover:bg-brand-purple/90 text-white animate-pulse ring-2 ring-brand-purple/50 ring-offset-1 ring-offset-background',
+                      )}
+                      onClick={() => {
+                        if (!mergeMode) {
+                          setMergeMode(true);
+                        } else if (readyToMerge) {
+                          handleMerge();
+                        }
+                      }}
+                      disabled={isMerging}
+                    >
+                      <Layers className="w-4 h-4" />
+                      {(readyToMerge || isMerging) && (
+                        <span className="ml-1 text-xs">
+                          {isMerging ? 'Merging...' : 'Merge'}
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {!mergeMode && (
+                  <TooltipContent>Merge Tasks</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {/* Add button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-brand-purple hover:text-brand-purple hover:bg-brand-purple/20"
+            onClick={() => setIsAdding(true)}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -178,6 +364,11 @@ export function FeatureList({
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
                       showInjectButton={isExtension}
+                      mergeMode={mergeMode}
+                      mergeSelected={selectedForMerge.includes(feature.id)}
+                      mergeDisabled={!selectedForMerge.includes(feature.id) && selectedForMerge.length >= 3}
+                      onMergeToggle={() => toggleMergeSelection(feature.id)}
+                      isMerged={feature.is_merged}
                     />
                   ))}
 
@@ -191,7 +382,7 @@ export function FeatureList({
                     </>
                   )}
 
-                  {/* Completed Tasks (Done) */}
+                  {/* Completed Tasks (Done) — no merge checkboxes */}
                   {completedTasks.map((feature, index) => (
                     <FeatureItem
                       key={feature.id}
@@ -207,6 +398,8 @@ export function FeatureList({
                       onDelete={() => onDeleteFeature(feature.id)}
                       onInject={() => onInjectPrompt(feature.id)}
                       showInjectButton={isExtension}
+                      mergeMode={false}
+                      isMerged={feature.is_merged}
                     />
                   ))}
                   {provided.placeholder}
