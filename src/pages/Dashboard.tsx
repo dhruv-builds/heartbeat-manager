@@ -10,7 +10,7 @@ import { CreditsBadge } from '@/components/heartbeat/CreditsBadge';
 import { ProjectContextSheet } from '@/components/heartbeat/ProjectContextSheet';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { FileText, Plus, Globe } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GradientLogo } from '@/components/ui/GradientLogo';
 
@@ -352,7 +352,6 @@ export default function Dashboard() {
               </>
             ) : (
               <>
-                <Globe className="w-6 h-6 text-muted-foreground mx-auto" />
                 <h2 className="text-lg font-semibold text-foreground">Welcome to LovaLog</h2>
                 <p className="text-sm text-muted-foreground max-w-[240px] mx-auto">
                   Navigate to a project on Lovable to create your first LovaLog.

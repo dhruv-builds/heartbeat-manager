@@ -1,4 +1,3 @@
-import { ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GradientLogoProps {
@@ -24,10 +23,11 @@ export function GradientLogo({ className, size = 'md', showText = true }: Gradie
         'gradient-brand rounded-xl flex items-center justify-center shadow-lg',
         config.container
       )}>
-        <ClipboardCheck 
-          size={config.icon} 
-          className="text-white" 
-          strokeWidth={2.5}
+        <img 
+          src="/app-logo.png" 
+          alt="LovaLog" 
+          className="object-contain" 
+          style={{ width: config.icon, height: config.icon }} 
         />
       </div>
       

@@ -94,9 +94,30 @@ export function useProjects() {
     if (!user) return null;
 
     try {
+      // Auto-detect Lovable project from active tab in extension
+      let lovableProjectId: string | null = null;
+      let lovableProjectUrl: string | null = null;
+
+      if (typeof chrome !== 'undefined' && chrome?.tabs?.query) {
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          const url = tabs[0]?.url || '';
+          const match = url.match(/^https:\/\/lovable\.dev\/projects\/([0-9a-fA-F-]{36})/);
+          if (match) {
+            lovableProjectId = match[1];
+            lovableProjectUrl = `https://lovable.dev/projects/${match[1]}`;
+          }
+        } catch {}
+      }
+
       const { data, error } = await (supabase as any)
         .from('projects')
-        .insert({ name, user_id: user.id })
+        .insert({
+          name,
+          user_id: user.id,
+          lovable_project_id: lovableProjectId,
+          lovable_project_url: lovableProjectUrl,
+        })
         .select()
         .single();
 
@@ -107,6 +128,8 @@ export function useProjects() {
         id: data.id,
         user_id: data.user_id,
         name: data.name,
+        lovable_project_id: data.lovable_project_id || null,
+        lovable_project_url: data.lovable_project_url || null,
         features: [],
         created_at: data.created_at,
         updated_at: data.updated_at,
