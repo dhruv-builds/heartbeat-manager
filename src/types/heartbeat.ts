@@ -8,7 +8,7 @@ export interface Feature {
   prompt: string;
   order: number;
   image_url?: string | null;
-  is_merged?: boolean;
+  is_merged: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +59,7 @@ export interface DbFeature {
   prompt: string;
   order: number;
   image_url?: string | null;
+  is_merged: boolean;
   created_at: string;
   updated_at: string;
 }

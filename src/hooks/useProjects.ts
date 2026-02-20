@@ -69,6 +69,7 @@ export function useProjects() {
             prompt: f.prompt,
             order: f.order,
             image_url: f.image_url,
+            is_merged: f.is_merged ?? false,
             created_at: f.created_at,
             updated_at: f.updated_at,
           })),
@@ -199,6 +200,7 @@ export function useProjects() {
           status,
           prompt: '',
           order: project.features.length,
+          is_merged: false,
         })
         .select()
         .single();
@@ -214,6 +216,7 @@ export function useProjects() {
         prompt: data.prompt,
         order: data.order,
         image_url: data.image_url,
+        is_merged: data.is_merged ?? false,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
@@ -337,6 +340,7 @@ export function useProjects() {
           status: feature.status,
           prompt: feature.prompt,
           image_url: feature.image_url,
+          is_merged: feature.is_merged,
           order: project.features.length,
         })
         .select()
@@ -353,6 +357,7 @@ export function useProjects() {
         prompt: data.prompt,
         order: data.order,
         image_url: data.image_url,
+        is_merged: data.is_merged ?? false,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
@@ -478,6 +483,7 @@ export function useProjects() {
           status: data.status,
           prompt: data.prompt,
           image_url: data.image_url || null,
+          is_merged: true,
           order: project.features.length,
         })
         .select()
