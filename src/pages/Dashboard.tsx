@@ -345,7 +345,7 @@ export default function Dashboard() {
       ) : (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center space-y-4">
-            <GradientLogo size="sm" showText={false} className="justify-center" />
+            <GradientLogo size="md" showText={false} bare className="justify-center" />
             {isOnLovableHost ? (
               <>
                 <h2 className="text-lg font-semibold text-foreground">Ready to build?</h2>

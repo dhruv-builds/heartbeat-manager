@@ -323,34 +323,18 @@ export function FeatureDetailSheet({
                   />
                 </div>
 
-                {/* Instructional copy for new users */}
-                {totalFeatureCount < 5 && (
-                  <div className="p-2.5 rounded-md border border-border bg-muted/50 text-xs text-muted-foreground leading-relaxed">
-                    Write/paste your own detailed prompt, or click <span className="text-brand-purple font-medium">Generate with AI</span> to let us write it for you! You can also paste a screenshot for context.
-                  </div>
-                )}
-
                 <textarea
                   ref={textareaRef}
                   value={localPrompt}
                   onChange={(e) => setLocalPrompt(e.target.value)}
-                  placeholder="Write your detailed prompt here...
-
-Example:
-## Feature: User Authentication
-
-### Requirements:
-- Email/password login
-- Social auth (Google, GitHub)
-- Password reset flow
-
-### UI:
-- Modern login form with validation
-- Remember me checkbox
-- Loading states"
+                  placeholder="Write/paste your own detailed prompt, or click Generate with AI to let us write it for you! You can also paste a screenshot for context."
                   className="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none font-mono overflow-y-auto"
                   style={{ minHeight: '240px', maxHeight: '480px' }}
                 />
+                {/* Auto-save indicator — directly below textarea */}
+                <div className="text-xs text-muted-foreground mt-2">
+                  Changes are saved automatically
+                </div>
               </div>
 
               {/* Image Preview */}
@@ -376,10 +360,6 @@ Example:
                 </div>
               )}
 
-              {/* Auto-save indicator */}
-              <div className="text-xs text-muted-foreground">
-                Changes are saved automatically
-              </div>
             </div>
 
             {/* Inject Button - Extension only */}
