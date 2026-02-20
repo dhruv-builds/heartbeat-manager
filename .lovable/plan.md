@@ -1,72 +1,195 @@
 
+## UX & Behavior Tweaks — Combined Change Request
 
-## Batch Merge Feature Implementation
-
-Implementing the full merge UX with progressive disclosure, selection mode, edge function call, undo toast, and transparent overlay cancellation.
-
----
-
-### Files Changed (5 files)
-
-#### 1. `src/types/heartbeat.ts`
-- Add optional `is_merged?: boolean` field to the `Feature` interface (client-side flag for badge display).
-
-#### 2. `src/components/heartbeat/FeatureItem.tsx`
-- Add new optional props: `mergeMode`, `mergeSelected`, `mergeDisabled`, `onMergeToggle`, `isMerged`.
-- Render a slide-in `Checkbox` (animated width 0 to 5, `transition-all duration-200`) to the left of the drag handle when `mergeMode && !isCompleted`.
-- When `mergeSelected`, add a purple ring highlight to the card.
-- When `isMerged`, show a small `Merge` Lucide icon next to the title.
-- In merge mode, clicking the card toggles selection instead of opening the detail sheet.
-- Completed items never show checkboxes.
-- Cards get `relative z-40` to sit above the overlay.
-
-#### 3. `src/components/heartbeat/FeatureList.tsx`
-Major changes:
-
-**New state:** `mergeMode`, `selectedForMerge` (string array, max 3), `isMerging`.
-
-**New props:** `projectId`, `onCreateMergedFeature`.
-
-**Header merge button:**
-- Only shown when `backlogCount >= 2`.
-- When not in merge mode: ghost `Layers` icon button with tooltip "Merge Tasks".
-- When in merge mode with fewer than 2 selected: same style, plus an `X` cancel button.
-- When 2+ selected: solid brand purple with `animate-pulse` ring effect + label "Merge". Clicking triggers `handleMerge`.
-- Sits to the left of the Add button for space efficiency.
-
-**Transparent overlay:**
-- When `mergeMode` is active, render `<div className="fixed inset-0 z-30 bg-transparent" onClick={exitMergeMode} />`.
-- Header and feature cards are `z-40` to remain clickable above the overlay.
-
-**Selection logic:**
-- `toggleMergeSelection`: add/remove from array, capped at 3.
-- Passes `mergeDisabled` to items when 3 are already selected.
-
-**Merge execution (`handleMerge`):**
-1. Show "Merging..." loading state.
-2. Call `supabase.functions.invoke('merge-features')` on the external Supabase with selected features' id, title, prompt, status.
-3. Insert new merged task via `onCreateMergedFeature` (uses first selected task's image).
-4. Delete old selected tasks via `onDeleteFeature`.
-5. Exit merge mode.
-6. Show "Undo" toast with an action button that deletes the merged feature and re-inserts old ones as new rows (with `now()` timestamps, per user's MVP preference).
-
-#### 4. `src/hooks/useProjects.ts`
-- Add `createMergedFeature` callback that inserts a feature with provided title, prompt, status, and image_url. Sets `is_merged: true` on the local Feature object. Returns the new Feature.
-- Export it from the hook's return object.
-
-#### 5. `src/pages/Dashboard.tsx`
-- Destructure `createMergedFeature` from `useProjects()`.
-- Pass two new props to `FeatureList`:
-  - `projectId={activeProject.id}`
-  - `onCreateMergedFeature={(data) => createMergedFeature(activeProject.id, data)}`
+Five targeted improvements across the Project Context sheet, Feature Detail sheet, feature creation logic, and logo/icon treatments.
 
 ---
 
-### Key Design Decisions
+### Summary of Files Changed
 
-- **Overlay approach** (per user request): A `fixed inset-0 z-30 bg-transparent` div handles click-outside cancellation cleanly. Cards and header sit at `z-40`.
-- **Undo creates new rows** (per user's MVP preference): Old features are re-inserted with fresh timestamps rather than trying to restore `created_at`.
-- **Edge function** is called on the external Supabase via the existing `supabase` client from `src/integrations/supabase/client.ts`.
-- **Max 3 selections**, checkboxes disabled beyond that. Completed tasks excluded.
-- **`is_merged`** is a client-side-only flag (not persisted in DB) -- it marks the merged task with a badge icon until the next page load/refetch.
+| File | What Changes |
+|------|-------------|
+| `src/components/heartbeat/ProjectContextSheet.tsx` | Restructure layout: paste textarea + Save button, stronger button styles, updated copy |
+| `src/components/heartbeat/FeatureDetailSheet.tsx` | Remove nudge block, update placeholder, fix "saved automatically" positioning |
+| `src/hooks/useProjects.ts` | `createFeature`: set `status = "next"` for first feature, `"backlog"` for rest |
+| `src/components/ui/GradientLogo.tsx` | Add `bare` prop: removes gradient container, renders logo directly at larger size |
+| `src/pages/Auth.tsx` | Use bare logo at ~150% size |
+| `src/pages/Dashboard.tsx` | Use bare logo in empty state at ~150% size |
 
+---
+
+### 1. Project Context Sheet (`ProjectContextSheet.tsx`)
+
+**Current layout (State A — no context yet):**
+- Section 1: "Generate Context File" prompt + Inject/Copy button
+- Section 2: "Upload Context" + Choose File button
+
+**New layout (State A):**
+
+**Header copy update:**
+- Title: `Project Context` (unchanged)
+- Subtitle changes to: `Paste or upload context so we can generate better prompts for this project.`
+
+**New Section 1 — "Paste context":**
+- Label: `Paste context`
+- A `Textarea` (shadcn/ui, `h-32`, `resize-none`) for the user to type or paste raw text/Markdown
+- Local state: `pastedContext` string
+- A **"Save Context" button** below it (solid brand gradient style: `className="w-full gradient-button gap-2"`) that:
+  - Calls `onSaveContext(pastedContext, 'pasted-context.txt')`
+  - Shows toast "Context saved" on success
+  - Disabled when `pastedContext.trim()` is empty or `isSaving`
+
+**New Section 2 — "Or upload a context file":**
+- Label: `Or upload a context file`
+- Helper copy: `Supports .txt and .docx files.`
+- Hidden file input (unchanged wiring)
+- **"Choose File" button** styled as `variant="outline"`, `size="sm"`, `w-full`
+
+**For the extension-only "Generate Context File" section:**
+- Keep the prompt textarea and Inject/Copy button
+- **"Inject to Lovable"** button: styled with `className="w-full gradient-button gap-2"` (solid primary)
+- **"Copy Prompt"** (web fallback): styled as `variant="outline"`, `size="sm"`, `w-full`
+
+**State B (context already loaded):** No changes.
+
+---
+
+### 2. Feature Detail Sheet (`FeatureDetailSheet.tsx`)
+
+**Change 2.1 — Remove nudge block, update placeholder:**
+
+Remove this block entirely (lines 327–331):
+```tsx
+{totalFeatureCount < 5 && (
+  <div className="p-2.5 rounded-md border border-border bg-muted/50 text-xs text-muted-foreground leading-relaxed">
+    Write/paste your own detailed prompt...
+  </div>
+)}
+```
+
+Replace the `<textarea>` placeholder text with:
+```
+Write/paste your own detailed prompt, or click Generate with AI to let us write it for you! You can also paste a screenshot for context.
+```
+
+**Change 2.2 — Fix "saved automatically" overlap:**
+
+The current "Changes are saved automatically" div at line 380 is inside the `gap-4` flex column. It's positioned in normal flow already, but sits between the image preview and the inject button area. No absolute positioning is involved — the issue is likely that the textarea's `flex-1` expands to push the text into the inject button area.
+
+Fix: Move the "Changes are saved automatically" text to be directly below the `<textarea>` (after the closing textarea tag), with `mt-2` spacing, instead of at the bottom of the `gap-4` container. This keeps it clearly anchored below the prompt field.
+
+```tsx
+{/* Auto-save indicator — directly below textarea */}
+<div className="text-xs text-muted-foreground mt-2">
+  Changes are saved automatically
+</div>
+```
+
+Also remove it from its current bottom position in the flex container.
+
+---
+
+### 3. Feature Creation Default Status (`useProjects.ts`)
+
+**In `createFeature` (line 186):**
+
+Current: always inserts `status: 'backlog'`.
+
+New logic: check how many features the project currently has in memory.
+
+```typescript
+const isFirstFeature = project.features.length === 0;
+const status: FeatureStatus = isFirstFeature ? 'next' : 'backlog';
+```
+
+Then use `status` in the insert:
+```typescript
+.insert({
+  project_id: projectId,
+  title,
+  status,   // ← dynamic
+  prompt: '',
+  order: project.features.length,
+})
+```
+
+This uses the already-loaded in-memory `project.features` array — no extra DB query needed. Safe for both extension and web contexts.
+
+---
+
+### 4. Logo/Icon Treatment — GradientLogo Component
+
+**`src/components/ui/GradientLogo.tsx`:**
+
+Add a `bare` boolean prop (defaults to `false`). When `bare={true}`:
+- Skip the `gradient-brand rounded-xl ... shadow-lg` container div entirely
+- Render the `<img>` directly, at a larger size (container size × ~150%)
+
+Size mapping for bare mode (150% of current container-implied icon size):
+```typescript
+const bareSizes = {
+  sm: 30,    // was 20
+  md: 42,    // was 28
+  lg: 60,    // was 40
+  xl: 84,    // was 56
+};
+```
+
+```tsx
+{bare ? (
+  <img 
+    src="/app-logo.png" 
+    alt="LovaLog" 
+    className="object-contain" 
+    style={{ width: bareSizes[size], height: bareSizes[size] }} 
+  />
+) : (
+  <div className={cn('gradient-brand rounded-xl flex items-center justify-center shadow-lg', config.container)}>
+    <img src="/app-logo.png" alt="LovaLog" className="object-contain" style={{ width: config.icon, height: config.icon }} />
+  </div>
+)}
+```
+
+---
+
+### 5. Auth Page — Login Logo (`Auth.tsx`)
+
+**Current (line 163–165):**
+```tsx
+<div className="flex flex-col items-center justify-center mb-8">
+  <GradientLogo size="lg" />
+</div>
+```
+
+**New:**
+```tsx
+<div className="flex flex-col items-center justify-center mb-8">
+  <GradientLogo size="lg" bare />
+</div>
+```
+
+This renders the logo at 60px directly on the dark background, without the purple rounded container. The text "LovaLog" + "Lovable Backlog Manager" remain beside it.
+
+---
+
+### 6. Dashboard Empty State — Logo (`Dashboard.tsx`)
+
+**Current (line 348):**
+```tsx
+<GradientLogo size="sm" showText={false} className="justify-center" />
+```
+
+**New:**
+```tsx
+<GradientLogo size="md" showText={false} bare className="justify-center" />
+```
+
+Using `md` bare gives a 42px logo (~150% of current `sm` 20px icon, roughly `w-10 h-10` equivalent). No purple background, rendered directly on the dark card background.
+
+---
+
+### Technical Notes
+
+- The `bare` prop is additive — all existing usages of `GradientLogo` (Landing page, Header, etc.) that don't pass `bare` continue to work exactly as before with the gradient container.
+- The `totalFeatureCount` prop in `FeatureDetailSheet` is no longer used for the nudge block, but it can stay in the interface for potential future use — no need to remove it from the call sites.
+- The paste-context save in `ProjectContextSheet` reuses the existing `onSaveContext(content, fileName)` prop — no new DB wiring needed.
