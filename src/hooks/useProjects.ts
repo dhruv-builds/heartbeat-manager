@@ -188,12 +188,15 @@ export function useProjects() {
     if (!project) return null;
 
     try {
+      const isFirstFeature = project.features.length === 0;
+      const status: FeatureStatus = isFirstFeature ? 'next' : 'backlog';
+
       const { data, error } = await (supabase as any)
         .from('features')
         .insert({
           project_id: projectId,
           title,
-          status: 'backlog',
+          status,
           prompt: '',
           order: project.features.length,
         })

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, Copy, Zap, RefreshCw } from 'lucide-react';
+import { Upload, Copy, Zap, RefreshCw, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Project } from '@/types/heartbeat';
 import { format } from 'date-fns';
@@ -107,7 +107,9 @@ export function ProjectContextSheet({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showUploadMode, setShowUploadMode] = useState(false);
+  const [pastedContext, setPastedContext] = useState('');
 
   const hasContext = !!project?.context_content;
   const showStateA = !hasContext || showUploadMode;
@@ -127,6 +129,23 @@ export function ProjectContextSheet({
       toast({ title: 'Prompt injected!', description: 'Your prompt is ready in the chat.' });
     } else {
       toast({ title: 'Injection failed', description: 'Could not find the Lovable chat input.', variant: 'destructive' });
+    }
+  };
+
+  const handleSavePasted = async () => {
+    if (!pastedContext.trim() || isSaving) return;
+    setIsSaving(true);
+    try {
+      const success = await onSaveContext(pastedContext.trim(), 'pasted-context.txt');
+      if (success) {
+        setPastedContext('');
+        setShowUploadMode(false);
+        toast({ title: 'Context saved!' });
+      } else {
+        toast({ title: 'Save failed', description: 'Could not save context. Please try again.', variant: 'destructive' });
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -171,7 +190,10 @@ export function ProjectContextSheet({
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) setShowUploadMode(false);
+    if (!newOpen) {
+      setShowUploadMode(false);
+      setPastedContext('');
+    }
     onOpenChange(newOpen);
   };
 
@@ -180,11 +202,11 @@ export function ProjectContextSheet({
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>
-            {showStateA ? 'Project Context' : `Context Active`}
+            {showStateA ? 'Project Context' : 'Context Active'}
           </SheetTitle>
           <SheetDescription>
             {showStateA
-              ? 'Upload a context file to help LovaLog generate better prompts.'
+              ? 'Paste or upload context so we can generate better prompts for this project.'
               : `${project?.context_file_name || 'Unknown file'} · Last updated: ${
                   project?.context_updated_at
                     ? format(new Date(project.context_updated_at), 'MMM d, yyyy')
@@ -196,38 +218,29 @@ export function ProjectContextSheet({
         <div className="mt-6 space-y-6">
           {showStateA ? (
             <>
-              {/* Section 1: Generate Context File */}
+              {/* Section 1: Paste context */}
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-foreground">Generate Context File</h3>
-                <p className="text-xs text-muted-foreground">
-                  Use this prompt in Lovable to generate a context file, then upload the result below.
-                </p>
+                <h3 className="text-sm font-medium text-foreground">Paste context</h3>
                 <Textarea
-                  readOnly
-                  value={CONTEXT_GENERATION_PROMPT}
-                  className="text-xs font-mono bg-muted/50 resize-none h-32 cursor-default"
+                  value={pastedContext}
+                  onChange={(e) => setPastedContext(e.target.value)}
+                  placeholder="Paste plain text or Markdown here…"
+                  className="h-32 resize-none text-sm"
                 />
-                <div>
-                  {isExtension ? (
-                    <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleInject}>
-                      <Zap className="w-3.5 h-3.5" />
-                      Inject to Lovable
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleCopyPrompt}>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy Prompt
-                    </Button>
-                  )}
-                </div>
+                <Button
+                  className="w-full gradient-button gap-2"
+                  onClick={handleSavePasted}
+                  disabled={!pastedContext.trim() || isSaving}
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSaving ? 'Saving…' : 'Save Context'}
+                </Button>
               </div>
 
-              {/* Section 2: Upload Context */}
+              {/* Section 2: Upload context file */}
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-foreground">Upload Context</h3>
-                <p className="text-xs text-muted-foreground">
-                  Upload a <code>.txt</code> or <code>.docx</code> file with your project context.
-                </p>
+                <h3 className="text-sm font-medium text-foreground">Or upload a context file</h3>
+                <p className="text-xs text-muted-foreground">Supports .txt and .docx files.</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -245,6 +258,30 @@ export function ProjectContextSheet({
                   <Upload className="w-3.5 h-3.5" />
                   {isUploading ? 'Processing...' : 'Choose File'}
                 </Button>
+              </div>
+
+              {/* Section 3: Generate Context File (extension: inject, web: copy) */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-foreground">Generate Context File</h3>
+                <p className="text-xs text-muted-foreground">
+                  Use this prompt in Lovable to generate a context file, then paste or upload the result above.
+                </p>
+                <Textarea
+                  readOnly
+                  value={CONTEXT_GENERATION_PROMPT}
+                  className="text-xs font-mono bg-muted/50 resize-none h-32 cursor-default"
+                />
+                {isExtension ? (
+                  <Button className="w-full gradient-button gap-2" onClick={handleInject}>
+                    <Zap className="w-3.5 h-3.5" />
+                    Inject to Lovable
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleCopyPrompt}>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy Prompt
+                  </Button>
+                )}
               </div>
             </>
           ) : (

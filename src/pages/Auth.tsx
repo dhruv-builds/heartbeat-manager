@@ -161,7 +161,7 @@ export default function Auth() {
       <div className="w-full max-w-sm space-y-6">
         {/* Logo Section */}
         <div className="flex flex-col items-center justify-center mb-8">
-          <GradientLogo size="lg" />
+          <GradientLogo size="lg" bare />
         </div>
         
         <p className="text-center text-muted-foreground">
