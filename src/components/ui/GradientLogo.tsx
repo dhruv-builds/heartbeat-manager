@@ -28,7 +28,7 @@ export function GradientLogo({ className, size = 'md', showText = true, bare = f
     <div className={cn('flex items-center gap-3', className)}>
       {bare ? (
         <img
-          src="/app-logo.png"
+          src="/lovalog-icon.svg"
           alt="LovaLog"
           className="object-contain"
           style={{ width: bareSizes[size], height: bareSizes[size] }}
@@ -39,7 +39,7 @@ export function GradientLogo({ className, size = 'md', showText = true, bare = f
           config.container
         )}>
           <img
-            src="/app-logo.png"
+            src="/lovalog-icon.svg"
             alt="LovaLog"
             className="object-contain"
             style={{ width: config.icon, height: config.icon }}

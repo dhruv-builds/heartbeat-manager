@@ -15,15 +15,16 @@ export function ContactFooter({ isExtension }: ContactFooterProps) {
       )}
     >
       <span className="text-zinc-400">
-        For any feedback please reach out to{' '}
+        Please{' '}
         <a
           href="https://www.linkedin.com/in/sondhidhruv/"
           target="_blank"
           rel="noopener noreferrer"
           className="underline text-zinc-400 hover:text-brand-purple transition-colors"
         >
-          Dhruv Sondhi
+          reach out
         </a>
+        {' '}for any feedback
       </span>
     </div>
   );

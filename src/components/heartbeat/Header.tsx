@@ -51,8 +51,8 @@ export function Header({ onExport, onImport, onNewProject, onSync, isSyncing }: 
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-2">
         <img 
-          src="./icon-128.png" 
-          alt="LovaLog" 
+          src="./lovalog-icon.svg" 
+          alt="LovaLog"
           className="w-6 h-6 object-contain"
         />
         <div>

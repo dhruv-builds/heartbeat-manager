@@ -76,10 +76,7 @@ export function FeatureList({
     [features]
   );
 
-  const backlogCount = useMemo(
-    () => features.filter(f => f.status === 'backlog').length,
-    [features]
-  );
+  // backlogCount removed – merge button is now always visible
 
   // Combined list for drag-drop (active first, then completed)
   const allSortedFeatures = useMemo(
@@ -225,7 +222,7 @@ export function FeatureList({
         </h2>
         <div className="flex items-center gap-1">
           {/* Merge button */}
-          {backlogCount >= 2 && (
+          {(
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
