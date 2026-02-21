@@ -1,69 +1,47 @@
 
 
-## Persistent `is_merged` Flag + Icon Update
-
-Two changes: make the `is_merged` field persistent across sessions by reading/writing it from the database, and swap the extension header icon from `app-logo.png` to `icon-128.png`.
+## Three Changes: New Icon, Always-Visible Merge Button, Footer Copy
 
 ---
 
-### Files Changed
+### 1. New Extension Icon
 
-| File | Change |
-|------|--------|
-| `src/types/heartbeat.ts` | Make `is_merged` required (with default `false`), add to `DbFeature` |
-| `src/hooks/useProjects.ts` | Read `is_merged` from DB in fetch, write it in `createFeature`, `createMergedFeature`, `duplicateFeature` |
-| `src/components/heartbeat/Header.tsx` | Swap `app-logo.png` to `icon-128.png` |
+Copy the uploaded SVG to the public directory as the new extension icon, then update references in `Header.tsx` and `GradientLogo.tsx`.
 
----
+**File: `public/lovalog-icon.svg`** (new)
+- Copy from `user-uploads://Copy_of_Lovalog_Logo_for_Chrome_extension.svg`
 
-### 1. Type Definitions (`src/types/heartbeat.ts`)
+**File: `src/components/heartbeat/Header.tsx` (line 54)**
+- Change `src="./icon-128.png"` to `src="./lovalog-icon.svg"`
+- Keep `w-6 h-6 object-contain` sizing
 
-**`Feature` interface (line 11):**
-- Change `is_merged?: boolean` to `is_merged: boolean` (required).
-
-**`DbFeature` interface (line 54):**
-- Add `is_merged: boolean` field.
+**File: `src/components/ui/GradientLogo.tsx` (lines 31, 42)**
+- Change both `src="/app-logo.png"` to `src="/lovalog-icon.svg"`
+- Keep existing sizing (bare mode sizes and container icon sizes remain unchanged)
 
 ---
 
-### 2. Feature Fetching (`src/hooks/useProjects.ts`, lines 64-74)
+### 2. Always-Visible Merge Button
 
-In the `.map()` that builds `Feature` objects from DB rows, add:
-```typescript
-is_merged: f.is_merged ?? false,
+**File: `src/components/heartbeat/FeatureList.tsx` (line 228)**
+- Remove the `{backlogCount >= 2 && (` condition wrapper (and its closing `)}`)
+- The merge button will always render in the header
+- Selection mode and actual merge execution still require 2+ selected tasks (already handled by `readyToMerge` and `handleMerge` guards)
+
+---
+
+### 3. Footer Copy Update
+
+**File: `src/components/ContactFooter.tsx` (lines 17-26)**
+
+Change the text from:
 ```
-
-This ensures all fetched features populate the field. The `?? false` handles any null/undefined values from older rows.
-
----
-
-### 3. Feature Creation (`src/hooks/useProjects.ts`)
-
-**`createFeature` (line 196):** Add `is_merged: false` to the insert object.
-**`createFeature` optimistic object (line 209):** Add `is_merged: false` (or read from `data.is_merged`).
-
-**`createMergedFeature` (line 475):** Add `is_merged: true` to the insert object. The optimistic object at line 497 already has `is_merged: true` -- no change needed there.
-
-**`duplicateFeature` (line 332):** Carry forward the source feature's `is_merged` value in the insert. Map it in the optimistic object too.
-
----
-
-### 4. Extension Header Icon (`src/components/heartbeat/Header.tsx`, line 53-56)
-
-Change:
-```tsx
-<img src="./app-logo.png" alt="LovaLog" className="w-6 h-6 object-contain" />
+For any feedback please reach out to Dhruv Sondhi
 ```
 To:
-```tsx
-<img src="./icon-128.png" alt="LovaLog" className="w-6 h-6 object-contain" />
+```
+Please <a href="...">reach out</a> for any feedback
 ```
 
-The `w-6 h-6` sizing stays the same to keep it consistent with surrounding elements (the text and buttons are all `h-8` / `text-base`).
-
----
-
-### 5. No UI Changes Needed for FeatureItem
-
-`FeatureItem.tsx` already receives `isMerged` as a prop and renders the `<Merge />` icon badge. The `FeatureList.tsx` already passes `isMerged={feature.is_merged}`. Since we're now reading this from the DB, the badge will persist across refreshes -- no component changes required.
+The hyperlink stays on "reach out" only, pointing to the same LinkedIn URL. Remove the name "Dhruv Sondhi".
 
