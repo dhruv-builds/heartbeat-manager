@@ -1,77 +1,165 @@
-**Heartbeat ❤️**
+# LovaLog
 
-**The Product Management Sidebar for Lovable Builders.**
+**The Backlog Manager for Lovable Builders.**
 
-Heartbeat is a Chrome Extension designed to bridge the gap between planning features and building them in Lovable. It allows you to manage a sequential backlog of feature prompts ("Pulses") and inject them directly into the Lovable chat interface with a single click.
+LovaLog is a Chrome Extension + Web App that helps you plan, write, and inject feature prompts directly into [Lovable](https://lovable.dev). Manage a per-project backlog of features, generate AI-powered prompts, and build faster — all from a side panel that sits right next to your builder.
 
-        Status: MVP / V1 (Local Mode)
-        Stack: React, Vite, Shadcn UI, Chrome Side Panel API
+> **Status:** V1 (Cloud-synced)
+> **Stack:** React · Vite · TypeScript · Tailwind CSS · Shadcn UI · Supabase · Chrome Side Panel API
 
-**🚀 Key Features**
+---
 
-1. Context-Aware Backlog
-Heartbeat automatically detects which Lovable project you are working on (e.g., "Daily Compass") and switches to the corresponding backlog. No manual context switching required.
+## Key Features
 
-2. The "Pulse" Workflow
-Instead of managing prompts in disjointed Notion docs or Google Sheets:
+### 🔗 Project-Aware Backlog
+LovaLog automatically detects which Lovable project you're working on by reading the browser tab URL. It switches to the matching backlog instantly — no manual context switching.
 
-Create Features: Define a feature title and its detailed prompt spec ("Pulse").
+### 💉 One-Click Prompt Injection *(Extension only)*
+Click **Inject** to teleport a prompt directly into Lovable's chat input. The chat field is auto-focused so you can hit Enter immediately. For prompts with attached images, a split button lets you inject **Prompt Only** or **Prompt & Image** (copies the image to your clipboard).
 
-Inject: Click the Inject button to teleport the prompt directly into the Lovable chat input.
+### 🤖 AI Prompt Generation
+Turn a feature title into a detailed, code-ready prompt with one click. LovaLog scrapes your current page context, factors in your project context file, and generates a structured implementation prompt. Attach screenshots or mockups for visual-aware prompts.
 
-Auto-Focus: The chat input is automatically focused, letting you hit Enter immediately to start the build.
+### 🔀 Feature Merging
+Select multiple backlog items and merge them into a single combined feature. The merged prompt aggregates all selected items, and the originals are marked as merged for traceability.
 
-3. Responsive Dashboard
-Sidebar Mode: A compact, drag-and-drop list that sits alongside your builder.
+### 📋 Project Context
+Paste or upload a project context document (`.txt` or `.docx`) that LovaLog feeds into every AI prompt generation. This ensures prompts are always aware of your app's architecture, decisions, and current state.
 
-Dashboard Mode: Open the extension in full-screen (Desktop) for a master-detail view to draft complex prompts comfortably.
+### 📊 Credit Monitor *(Extension only)*
+A toolbar badge shows your real-time Lovable credit status. Background polling checks every 5 minutes so you never miss expiring daily credits.
 
-4. Local Privacy
-All data is stored in your browser's localStorage. No external databases, no cloud sync (yet). Your ideas stay on your machine.
+### 🖥️ Dual-Mode Interface
+- **Side Panel** (Extension): A compact, drag-and-drop backlog that sits alongside your Lovable builder.
+- **Web Dashboard** ([lovalog.lovable.app](https://lovalog.lovable.app)): A full-screen master-detail view for drafting complex prompts comfortably.
 
-**🛠 Installation (Developer Mode)**
+### ☁️ Cloud Sync
+All data (projects, features, context) is stored in Supabase and synced across devices. Sign in with your account and pick up where you left off.
 
-Since this is a private tool, you install it as an "Unpacked Extension":
+---
 
-Clone or Download this repository.
+## Installation
 
-Install Dependencies:
+### Chrome Extension (Developer Mode)
 
-          npm install
-  
-Build the Extension:
+1. **Clone** the repository:
+   ```bash
+   git clone https://github.com/your-org/lovalog.git
+   cd lovalog
+   ```
 
-          npm run build
-  
-This will create a dist/ folder.
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-Load into Chrome:
+3. **Build:**
+   ```bash
+   npm run build
+   ```
 
-Go to chrome://extensions
+4. **Load into Chrome:**
+   - Navigate to `chrome://extensions`
+   - Enable **Developer Mode** (top-right toggle)
+   - Click **Load Unpacked**
+   - Select the `dist` folder
 
-Enable Developer Mode (top right toggle).
+### Web App
 
-Click Load Unpacked.
+Visit [lovalog.lovable.app](https://lovalog.lovable.app) — no installation needed.
 
-Select the dist folder from this project.
+---
 
-**📖 How to Use**
+## How to Use
 
-Open your project in Lovable.dev.
+1. Open your project on [lovable.dev](https://lovable.dev).
+2. Click the **LovaLog** icon in your Chrome toolbar to open the side panel.
+3. If a new Lovable project is detected, LovaLog will offer to create a matching backlog project automatically.
+4. **Add a feature** — type a title and press Enter.
+5. **Write or generate a prompt** — open the feature detail sheet to write your own prompt, paste a screenshot, or click **Generate with AI**.
+6. **Inject** — click the Inject button to send the prompt straight into Lovable's chat.
 
-Click the Heartbeat icon in your Chrome toolbar (or open the Side Panel).
+---
 
-Accept the Prompt: "New Project Detected: [Your App Name]".
+## Project Structure
 
-Add a Feature: Type a name (e.g., "User Auth") and the Prompt Spec.
+```
+src/
+├── components/
+│   ├── heartbeat/       # Core UI: FeatureList, FeatureItem, FeatureDetailSheet,
+│   │                    #   ProjectSelector, ProjectContextSheet, Header, etc.
+│   ├── auth/            # AuthProvider, ProtectedRoute
+│   └── ui/              # Shadcn UI primitives
+├── hooks/
+│   ├── useProjects.ts   # CRUD for projects & features (Supabase)
+│   ├── useChromeMessaging.ts  # Extension ↔ content script bridge
+│   ├── useCredits.ts    # Credit monitoring
+│   ├── useGeneratePrompt.ts   # AI prompt generation
+│   └── useImageUpload.ts      # Image attachment handling
+├── pages/
+│   ├── Dashboard.tsx    # Main app view
+│   ├── Auth.tsx         # Login / signup
+│   └── LandingPage.tsx  # Marketing page (web only)
+├── types/
+│   └── heartbeat.ts     # Core type definitions
+└── lib/
+    └── featureSorting.ts # Sort logic for active/completed features
 
-Build: When ready, click the Inject button (arrow icon) on the card.
+public/
+├── manifest.json        # Chrome Extension manifest (MV3)
+├── background.js        # Service worker (side panel trigger, credit polling)
+├── content.js           # Content script (project detection, prompt injection)
+└── lovalog-icon.svg     # App icon
 
-**🏗 Project Structure**
+supabase/
+└── functions/
+    └── generate-feature-prompt/  # Edge function for AI prompt generation
+```
 
-/src: React application logic (Sidebar UI, Context Providers).
+---
 
-/public: Chrome-specific assets (manifest.json, content.js, icons).
+## Feature Workflow
 
-content.js: The bridge script that reads the Lovable project name and handles text injection.
+| Status    | Meaning |
+|-----------|---------|
+| **Next**  | The feature you're building right now (first feature defaults to this) |
+| **Backlog** | Queued for later |
+| **Done**  | Completed / shipped |
 
+Features support drag-and-drop reordering, duplication, and deletion. Merged features are visually tagged with a merge icon.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Vite |
+| UI | Tailwind CSS, Shadcn UI, Radix Primitives |
+| Drag & Drop | @hello-pangea/dnd |
+| Backend | Supabase (Auth, PostgreSQL, Edge Functions) |
+| AI | Perplexity API (via Edge Function) |
+| Extension | Chrome Manifest V3, Side Panel API |
+
+---
+
+## Development
+
+```bash
+# Start dev server
+npm run dev
+
+# Build for production / extension
+npm run build
+
+# Run tests
+npm test
+```
+
+In development mode (outside the extension), LovaLog runs as a standard web app. Extension-only features (injection, credit monitoring) gracefully degrade — injection falls back to clipboard copy, credits show mock data.
+
+---
+
+## License
+
+Private project. All rights reserved.
