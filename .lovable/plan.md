@@ -1,47 +1,47 @@
 
 
-## Three Changes: New Icon, Always-Visible Merge Button, Footer Copy
+## Add CHANGELOG.md
 
----
+Create a `CHANGELOG.md` at the project root documenting LovaLog's evolution from its origins as "Heartbeat" through to the current state.
 
-### 1. New Extension Icon
+### Content Structure
 
-Copy the uploaded SVG to the public directory as the new extension icon, then update references in `Header.tsx` and `GradientLogo.tsx`.
-
-**File: `public/lovalog-icon.svg`** (new)
-- Copy from `user-uploads://Copy_of_Lovalog_Logo_for_Chrome_extension.svg`
-
-**File: `src/components/heartbeat/Header.tsx` (line 54)**
-- Change `src="./icon-128.png"` to `src="./lovalog-icon.svg"`
-- Keep `w-6 h-6 object-contain` sizing
-
-**File: `src/components/ui/GradientLogo.tsx` (lines 31, 42)**
-- Change both `src="/app-logo.png"` to `src="/lovalog-icon.svg"`
-- Keep existing sizing (bare mode sizes and container icon sizes remain unchanged)
-
----
-
-### 2. Always-Visible Merge Button
-
-**File: `src/components/heartbeat/FeatureList.tsx` (line 228)**
-- Remove the `{backlogCount >= 2 && (` condition wrapper (and its closing `)}`)
-- The merge button will always render in the header
-- Selection mode and actual merge execution still require 2+ selected tasks (already handled by `readyToMerge` and `handleMerge` guards)
-
----
-
-### 3. Footer Copy Update
-
-**File: `src/components/ContactFooter.tsx` (lines 17-26)**
-
-Change the text from:
 ```
-For any feedback please reach out to Dhruv Sondhi
-```
-To:
-```
-Please <a href="...">reach out</a> for any feedback
+# Changelog
+
+## v1.0 — 2026-03-08 (Current)
+- Persistent `is_merged` flag (database-backed merged status)
+- New LovaLog SVG icon across extension and web
+- Merge button always visible (no minimum task count)
+- Updated footer copy
+- Updated README with full feature documentation
+
+## v0.5 — 2026-02-17
+- Smart Load button (extension navigates tab, web opens new tab, hidden when URL matches)
+- Background credit polling via chrome.alarms (5-min interval)
+- Event-driven credit check on Lovable tab load
+- Prompt submission sets credits to "unknown" with 3s delayed re-check
+- Redesigned context button ("Add Context" CTA when empty, dot indicator when active)
+- Web dashboard gains Load button and context CTA
+
+## v0.4 — Initial Cloud Release
+- Migrated from localStorage to Supabase (Auth, PostgreSQL, Storage)
+- AI prompt generation via Perplexity API edge function
+- Feature merging (select + combine multiple backlog items)
+- Project context upload (.txt / .docx) for AI-enriched prompts
+- One-click prompt injection into Lovable chat
+- Image attachment support (screenshots/mockups)
+- Dual auth: Google OAuth (extension) + email/password (web)
+- Web dashboard at lovalog.lovable.app
+- Landing page with marketing content
+
+## v0.1 — Heartbeat MVP
+- Chrome Extension side panel (Manifest V3)
+- Project-aware backlog (auto-detects Lovable project from tab URL)
+- Feature CRUD with drag-and-drop reordering
+- Manual prompt writing and injection
+- All data stored in localStorage
 ```
 
-The hyperlink stays on "reach out" only, pointing to the same LinkedIn URL. Remove the name "Dhruv Sondhi".
+Single file creation, no other changes needed.
 
