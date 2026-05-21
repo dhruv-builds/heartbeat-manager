@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0 — 2026-05-21 (Current)
+- **Migrated backend to Lovable Cloud** (managed Supabase). External instance deprecated.
+- **Switched AI prompt generation from Perplexity to Lovable AI Gateway** (default model `google/gemini-3-flash-preview`). No external API key required.
+- New landing page: kinetic scroll-driven design with Framer Motion (pinned scrollytelling, bento features, animated credit counter, magnetic CTA).
+- Auth: managed Google OAuth + email/password with HIBP leaked-password protection enabled.
+- Storage bucket `feature-images` re-provisioned with per-user RLS.
+- Chrome extension bumped to `v2.0.0`. **Existing users will need to sign up fresh** — no data migration from the old backend.
+
 ## v1.0 — 2026-03-08 (Current)
 - Persistent `is_merged` flag (database-backed merged status)
 - New LovaLog SVG icon across extension and web

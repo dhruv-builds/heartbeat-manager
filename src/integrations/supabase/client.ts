@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// FORCE OVERRIDE: Use my external Supabase project
-const SUPABASE_URL = "https://sacnvqqjrrrzdkifsxyp.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhY252cXFqcnJyemRraWZzeHlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5OTEwODQsImV4cCI6MjA4NDU2NzA4NH0.WEJTll5C-xYwfSMoLSMamtLWVMhlmyF6YLT71FcJYSo";
+// LovaLog v2 — Lovable Cloud managed backend
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
