@@ -3,7 +3,7 @@
   "name": "LovaLog",
   "short_name": "LovaLog",
   "description": "Lovable Backlog Manager - Manage your Lovable project features and prompts",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "icons": {
     "16": "icon-128.png",
     "48": "icon-128.png",

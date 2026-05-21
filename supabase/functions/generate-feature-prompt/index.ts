@@ -1,5 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -20,7 +18,7 @@ Output Requirements:
 - If an image is provided, reference specific visual elements you observe (e.g., 'Match the button style shown in the screenshot', 'Use the layout pattern visible in the mockup').
 - Keep it concise but comprehensive. Do not include introductory fluff like 'Here is your prompt'. Just output the prompt itself.`;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -29,11 +27,11 @@ serve(async (req) => {
   try {
     const { pageContent, featureTitle, existingFeatures, attachedImage, projectContext } = await req.json();
 
-    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    if (!PERPLEXITY_API_KEY) {
-      console.error("PERPLEXITY_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY is not configured");
       return new Response(
-        JSON.stringify({ error: "PERPLEXITY_API_KEY is not configured" }),
+        JSON.stringify({ error: "AI service is not configured" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -77,24 +75,23 @@ Generate a precise, actionable development prompt for this feature.`;
       { role: "user", content: userMessageContent },
     ];
 
-    console.log("Calling Perplexity API for feature:", featureTitle, "with image:", !!attachedImage);
+    console.log("Calling Lovable AI Gateway for feature:", featureTitle, "with image:", !!attachedImage);
 
-    const response = await fetch("https://api.perplexity.ai/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar-pro",
+        model: "google/gemini-3-flash-preview",
         messages,
-        stream: false,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Perplexity API error:", response.status, errorText);
+      console.error("Lovable AI Gateway error:", response.status, errorText);
 
       if (response.status === 429) {
         return new Response(
@@ -108,7 +105,7 @@ Generate a precise, actionable development prompt for this feature.`;
 
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Payment required. Please check your Perplexity API credits." }),
+          JSON.stringify({ error: "AI credits exhausted. Add credits in your workspace settings." }),
           {
             status: 402,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -117,7 +114,7 @@ Generate a precise, actionable development prompt for this feature.`;
       }
 
       return new Response(
-        JSON.stringify({ error: `Perplexity API error: ${response.status}` }),
+        JSON.stringify({ error: `AI service error: ${response.status}` }),
         {
           status: response.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
